@@ -4,36 +4,58 @@ TITLE Proj6_934066739     (Proj6_934066739.asm)
 ; Last Modified: 3/6/2021
 ; OSU email address: mcfarlti@oregonstate.edu
 ; Course number/section:   CS271 Section 400
-; Project Number: 6              Due Date: 3/14/2021
+; Project Number: 6              Due Date: 3/18/2021
 ; Description: This file is provided as a template from which you may work
 ;              when developing assembly projects in CS271.
 
 INCLUDE Irvine32.inc
 
 ; Macro Definitions
-mGetString   MACRO prompt, userInput, characterCount  
-	; Display a prompt (input parameter by reference)
-		; Get the user's keyboard input into a memory location (output parameter, by reference)
-	; Provide count for length of input string
-	LOCAL _sumLoop
+mGetString   MACRO prompt:REQ, userInput:REQ, characterCount:REQ, validCheck:REQ, errMessage:REQ, inputLength:REQ
+
+	LOCAL	_validNum
+	LOCAL	_invalidNum
+	LOCAL	_endGetString
+	LOCAL	_promptUser
+
 	PUSH	EAX
 	PUSH	EBX
 	PUSH	EDX
-	
+
+	MOV		EAX,	validCheck
+	CMP		EAX,	0
+	JNZ		_promptUser
+	JMP		_invalidNum
+
+_promptUser:
 	MOV		EDX,	prompt
 	CALL	WriteString
+
+_validNum:
 	MOV		EDX,	userInput
 	MOV		ECX,	characterCount
-	MOV		characterCount,	EAX
 	CALL	ReadString
+
+	; This assigns the value of EAX to the memory location of inputLength
+	MOV		EBX,	inputLength
+	MOV		[EBX],	EAX
+	JMP		_endGetString
+
+_invalidNum:
+	MOV		EDX,	errMessage
+	CALL	WriteString
+	JMP		_validNum
+
+_endGetString:
 	POP		EDX
 	POP		EBX
 	POP		EAX
 ENDM
 
 ; (insert constant definitions here)
-upperValidation = 2147483647	; this is the maximum number allowed for input
-lowerValidation = -2147482648	; this is the minimum number allowed for input
+upperValidation =	 2147483647						; this is the maximum number allowed for input
+lowerValidation =	-2147482648						; this is the minimum number allowed for input
+maxInputLength	=	11
 
 .data
 ; variables used in introduction
@@ -47,9 +69,18 @@ programInstructions		BYTE		"Please provide 10 signed decimal integers.", 13, 10,
 
 userPrompt				BYTE		"please enter a signed number: ", 0
 
-inputFromUser			BYTE		12	DUP(0)		; set to a size of 12 since -2,147,482,648 is the longest character allowed
+inputFromUser			BYTE		20	DUP(0)		; set to a size of 12 since -2,147,482,648 is the longest character allowed
+
+lengthOfInput			DWORD		?
+
 ; variables used in data validation
-errorMessage			BYTE		"ERROR: You did not enter a signed number or your number was too big.", 13, 10, 0
+errorMessage			BYTE		"ERROR: You did not enter a signed number or your number was too big.", 13, 10
+						BYTE		"Please try again: ", 0
+
+isValid					DWORD		1
+
+; array used to keep track of items
+numArray				SDWORD		10	DUP(?)
 
 .code
 main PROC
@@ -58,7 +89,14 @@ main PROC
 	PUSH	OFFSET	programHeader
 	CALL	introduction
 
-	PUSH	SIZEOF inputFromUser
+	PUSH	lowerValidation
+	PUSH	upperValidation
+	PUSH	maxInputLength
+	PUSH	OFFSET	lengthOfInput
+	PUSH	OFFSET	errorMessage
+	PUSH	isValid
+	PUSH	OFFSET	numArray
+	PUSH	SIZEOF	inputFromUser
 	PUSH	OFFSET	inputFromUser
 	PUSH	OFFSET	userPrompt
 	CALL	ReadVal
@@ -106,6 +144,13 @@ introduction ENDP
 ; Postconditions: None
 ;
 ; Receives:
+; [EBP+44] = lowerValidation
+; [EBP+40] = upperValidation
+; [EBP+36] = maxInputLength
+; [EBP+32] = lengthOfInput
+; [EBP+28] = errorMessage
+; [EBP+24] = isValid
+; [EBP+20] = numArray
 ; [EBP+16] = SIZEOF inputFromUser
 ; [EBP+12] = inputFromUser
 ; [EBP+8] = userPrompt
@@ -119,7 +164,46 @@ ReadVal	PROC
 	; Convert (using string primitives) the string of ASCII digits to its numeric value representation (SDWORD)
 		;	Validate the user's input is a valid number (no letters, symbols, etc).
 	; Store this value in a memory variable
-	mGetString [EBP+8], [EBP+12], [EBP+16]
+_userInput:
+ 	mGetString [EBP+8], [EBP+12], [EBP+16], [EBP+24], [EBP+28], [EBP+32]
+
+	MOV		[EBP+24],	1					; reset isValid to True
+_checkForLength:
+	;  lengthOfInput is an offset
+	MOV		EBX,	[EBP+32]				
+	MOV		EAX,	[EBX]
+
+	CMP		EAX,	[EBP+36]				; maxInputLength			 
+	JA		_invalidInput
+	JB		_checkForCharacters
+
+_invalidInput:
+	MOV		EAX,		0
+	MOV		[EBP+24],	EAX					; isValid
+	JMP		_userInput
+
+_checkForCharacters:
+	; go through all of the characters and see if there are any non number characters
+
+
+	; Compare each item in the string with a range of numbers
+	
+		
+		; if there are any numbers that are outside of the bounds, send it back to input
+
+		; if the whole item is a number, convert it to an integer
+		; compare the integer with the upper bounds
+			; if this is within the bounds, add it to the array
+			; if this is outside of the bounds, send the user back to input
+
+	; validate if this string is a SDWORD that fits in 32 bits.
+		; if this meets the criteria, add this SDWORD into an array
+		; if this doesn't meet the critera
+			; change isValid to 0
+				; call macro again
+
+	MOV		AL,		[EBP+12]
+	CALL	WriteInt
 	POP		EBP
 	RET		12
 ReadVal ENDP
