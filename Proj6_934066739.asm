@@ -158,32 +158,58 @@ introduction ENDP
 ; returns: None
 ; ---------------------------------------------------------------------------------
 ReadVal	PROC
-	PUSH	EBP	
-	MOV		EBP,	ESP
+
+	LOCAL	lowAscii:BYTE, count:BYTE
+
+	MOV		lowAscii,	48
+	MOV		count,		0
 	; MUST invoke the mGetString Macro to get user input in the form of a string of digits
 	; Convert (using string primitives) the string of ASCII digits to its numeric value representation (SDWORD)
 		;	Validate the user's input is a valid number (no letters, symbols, etc).
 	; Store this value in a memory variable
+
 _userInput:
  	mGetString [EBP+8], [EBP+12], [EBP+16], [EBP+24], [EBP+28], [EBP+32]
 
-	MOV		[EBP+24],	1					; reset isValid to True
+	MOV		EAX,		1
+	MOV		[EBP+24],	EAX					; reset isValid to True
 _checkForLength:
 	;  lengthOfInput is an offset
 	MOV		EBX,	[EBP+32]				
 	MOV		EAX,	[EBX]
 
+	; if the string length is greather than what is allowed - it is not valid
 	CMP		EAX,	[EBP+36]				; maxInputLength			 
 	JA		_invalidInput
 	JB		_checkForCharacters
+
+_checkForCharacters:
+	; STD because if the number is negative, that is the last item to check
+	STD
+
+	MOV		EDI,	[EBP+16]				; inputFromUser
+	MOV		ECX,	[EBP+32]
+
+	; decrementing, because the num may be negative, and this leaves this out
+	DEC		ECX
+
+	MOV		AL,		lowerAscii
+	MOV		AH,		count
+	MOV		EDI,	
+
+_scanEachItem:
+	REPNE	SCASB
+
+; start working on checkForCharacters now!!
 
 _invalidInput:
 	MOV		EAX,		0
 	MOV		[EBP+24],	EAX					; isValid
 	JMP		_userInput
 
-_checkForCharacters:
 	; go through all of the characters and see if there are any non number characters
+
+	STD
 
 
 	; Compare each item in the string with a range of numbers
@@ -202,9 +228,9 @@ _checkForCharacters:
 			; change isValid to 0
 				; call macro again
 
-	MOV		AL,		[EBP+12]
-	CALL	WriteInt
-	POP		EBP
+;	MOV		AL,		[EBP+12]
+;	CALL	WriteInt
+	;POP		EBP
 	RET		12
 ReadVal ENDP
 
