@@ -159,7 +159,7 @@ introduction ENDP
 ; ---------------------------------------------------------------------------------
 ReadVal	PROC
 
-	LOCAL	lowAscii:BYTE, highAscii:BYTE, numsFound:DWORD, count:BYTE, isNegative:DWORD
+	LOCAL	lowAscii:BYTE, highAscii:BYTE, numsFound:DWORD, count:BYTE, hasSign:DWORD
 
 	MOV		lowAscii,	48
 	MOV		highAscii,	57
@@ -170,7 +170,7 @@ ReadVal	PROC
 
 _userInput:
 	; reset the negative tracker and get input
-	MOV		isNegative,	0
+	MOV		hasSign,	0
 	MOV		numsFound,	0
  	mGetString [EBP+8], [EBP+12], [EBP+16], [EBP+24], [EBP+28], [EBP+32]
 
@@ -194,19 +194,21 @@ _checkForCharacters:
 	MOV		EBX,	[EBP+32]				; lengthOfInput
 	MOV		ECX,	[EBX]
 
-	; Take the string and see if the first item is a negative number
+	; Take the string and see if the first item is a sign (+ or -)
 	MOV		EDI,	[EBP+12]				; inputFromUser
 	MOV		AH,		[EDI]
 	CMP		AH,		'-'
+	JE		_containsSign
+	CMP		AH,		'+'
+	JE		_containsSign
 
 	; If it is positive, evaluation can begin
-	JNE		_evaluateString
-	JE		_negativeNumber
+	JMP		_evaluateString
 
-_negativeNumber:
+_containsSign:
 	; if the number is negative, move to the next character in the string
-	ADD		EDI,	1
-	MOV		isNegative,	1
+	ADD		EDI,		1
+	MOV		hasSign,	1
 	DEC		ECX
 	
 	; iterates through EDI and compares with AL at each step
@@ -244,7 +246,7 @@ _incrementAscii:
 	; set pointer back to inputFromUser reference
 	MOV		EDI,		[EBP+12]			
 	MOV		BL,			[EDI]
-	CMP		isNegative,	1
+	CMP		hasSign,	1
 	JE		_moveUpOneByte	
 	JNE		_reevaluate
 
@@ -267,11 +269,11 @@ _evaluateLength:
 	; comparing the maximum length of the string allowed with the numbers found
 	MOV		EAX,		[EBP+32]				; lengthOfInput
 	MOV		EBX,		[EAX]
-	CMP		isNegative,	1						; local variable
-	JE		_negAdjustment
+	CMP		hasSign,	1						; local variable
+	JE		_signAdjustment
 	JNE		_testForNums
 
-_negAdjustment:
+_signAdjustment:
 	; if a number has a negative in the front, then the max nums it will have is 1 less than the characters
 	DEC		EBX
 	JMP		_testForNums
@@ -288,6 +290,13 @@ _invalidInput:
 
 _stringToInteger:
 	; here the string is convered to an integer...glhf
+	; Put item into AL
+	; Subtract 48
+	; Convert to 32 bit
+	; multiply by 10*string length
+	; add to EAX
+	; check sign - if negative, make this negative
+
 
 
 	; go through all of the characters and see if there are any non number characters
@@ -297,7 +306,6 @@ _stringToInteger:
 	
 		
 		; if there are any numbers that are outside of the bounds, send it back to input
-
 		; if the whole item is a number, convert it to an integer
 		; compare the integer with the upper bounds
 			; if this is within the bounds, add it to the array
