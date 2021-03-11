@@ -159,10 +159,12 @@ introduction ENDP
 ; ---------------------------------------------------------------------------------
 ReadVal	PROC
 
-	LOCAL	lowAscii:BYTE, count:BYTE
+	LOCAL	lowAscii:BYTE, highAscii:BYTE, minusSign:BYTE, numsFound:DWORD, count:BYTE
 
 	MOV		lowAscii,	48
-	MOV		count,		0
+	MOV		highAscii,	57
+	MOV		minusSign,	45
+	MOV		numsFound,	0
 	; MUST invoke the mGetString Macro to get user input in the form of a string of digits
 	; Convert (using string primitives) the string of ASCII digits to its numeric value representation (SDWORD)
 		;	Validate the user's input is a valid number (no letters, symbols, etc).
@@ -174,8 +176,7 @@ _userInput:
 	MOV		EAX,		1
 	MOV		[EBP+24],	EAX					; reset isValid to True
 _checkForLength:
-	;  lengthOfInput is an offset
-	MOV		EBX,	[EBP+32]				
+	MOV		EBX,	[EBP+32]				; lengthOfInput		
 	MOV		EAX,	[EBX]
 
 	; if the string length is greather than what is allowed - it is not valid
@@ -184,23 +185,97 @@ _checkForLength:
 	JB		_checkForCharacters
 
 _checkForCharacters:
-	; STD because if the number is negative, that is the last item to check
-	STD
 
-	MOV		EDI,	[EBP+16]				; inputFromUser
-	MOV		ECX,	[EBP+32]
+	; set AL to character '0' and increment until '9'
+	MOV		AL,		lowAscii				; local variable
 
-	; decrementing, because the num may be negative, and this leaves this out
+	; prepare counter for string evaluation
+	MOV		EBX,	[EBP+32]				; lengthOfInput
+	MOV		ECX,	[EBX]
+
+	; Take the string and see if the first item is a negative number
+	MOV		EDI,	[EBP+12]				; inputFromUser
+	MOV		AH,		[EDI]
+	CMP		AH,		minusSign				; local variable
+
+	; If it is positive, evaluation can begin
+	JNE		_evaluateString
+	JE		_negativeNumber
+
+_negativeNumber:
+	; if the number is negative, move to the next character in the string
+	ADD		EDI,	1
 	DEC		ECX
+	
+	; iterates through EDI and compares with AL at each step
+_evaluateString:
+	MOV		AH,		[EDI]			; for debugging purposes
+	CMP		AL,		[EDI]
+	JE		_countUp
+	ADD		EDI,	1
+	LOOP	_evaluateString
+	JMP		_testForNextAscii
 
-	MOV		AL,		lowerAscii
-	MOV		AH,		count
-	MOV		EDI,	
+_countUp:
+	INC		numsFound				; local variable
+	ADD		EDI,	1
+	LOOP	_evaluateString
+	JMP		_testForNextAscii
 
-_scanEachItem:
-	REPNE	SCASB
+_testForNextAscii:
+	CMP		AL,		highAscii		; local variable
+	JNE		_incrementAscii
+	JE		_evaluateLength
 
-; start working on checkForCharacters now!!
+_incrementAscii:
+	INC		AL
+
+	; this gives us a count that we will use to adjust ECX
+	MOV		AH,		AL
+	SUB		AH,		lowAscii
+	MOV		count,	AH	
+
+	; prepare counter for string evaluation
+	MOV		EBX,	[EBP+32]				; lengthOfInput
+	MOV		ECX,	[EBX]
+
+	; set pointer back to inputFromUser reference
+	MOV		EDI,	[EBP+12]			
+	MOV		BL,		[EDI]
+	CMP		BL,		'-'
+	JE		_moveUpOneByte	
+	JNE		_reevaluate
+
+	; since it's a negative, the first character is not considered, so ECX is one less
+_moveUpOneByte:
+	ADD		EDI,	1
+	LOOP	_evaluateString
+
+	; increase the counter to work with the whole string after the loop
+_reevaluate:
+	INC		ECX
+	LOOP	_evaluateString
+	JMP		_evaluateLength
+	
+
+_evaluateLength:
+	; here, we are going to compare the count, which has accrued each time that number was found, and
+	;	we are going to compare that with 1 less than the maximum allowed input because that is the number
+	;	that count should be in this respect
+
+	; comparing the maximum length of the string allowed with the numbers found
+	MOV		EBX,	[EBP+36]				; lengthOfInput
+	DEC		EBX
+
+	CMP		EBX,	numsFound
+	JNE		_invalidInput
+	JE		_stringToInteger
+
+_stringToInteger:
+	; here the string is convered to an integer...glhf
+
+
+
 
 _invalidInput:
 	MOV		EAX,		0
@@ -208,8 +283,6 @@ _invalidInput:
 	JMP		_userInput
 
 	; go through all of the characters and see if there are any non number characters
-
-	STD
 
 
 	; Compare each item in the string with a range of numbers
