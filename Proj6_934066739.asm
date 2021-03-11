@@ -264,7 +264,8 @@ _evaluateLength:
 	;	that count should be in this respect
 
 	; comparing the maximum length of the string allowed with the numbers found
-	MOV		EBX,	[EBP+36]				; lengthOfInput
+	MOV		EAX,	[EBP+32]				; lengthOfInput
+	MOV		EBX,	[EAX]
 	DEC		EBX
 
 	CMP		EBX,	numsFound
