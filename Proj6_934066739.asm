@@ -159,7 +159,7 @@ introduction ENDP
 ; ---------------------------------------------------------------------------------
 ReadVal	PROC
 
-	LOCAL	lowAscii:BYTE, highAscii:BYTE, numsFound:DWORD, singleNum:BYTE, hasSign:DWORD
+	LOCAL	lowAscii:BYTE, highAscii:BYTE, numsFound:DWORD, singleNum:BYTE, hasSign:DWORD, powerOfTen: DWORD, conversionReady: BYTE
 
 	MOV		lowAscii,	48
 	MOV		highAscii,	57
@@ -172,10 +172,12 @@ _userInput:
 	; reset the negative tracker and get input
 	MOV		hasSign,	0
 	MOV		numsFound,	0
+	MOV		stringConversionReady,	0
  	mGetString [EBP+8], [EBP+12], [EBP+16], [EBP+24], [EBP+28], [EBP+32]
 
 	MOV		EAX,		1
 	MOV		[EBP+24],	EAX						; reset isValid to True
+
 _checkForLength:
 	MOV		EBX,	[EBP+32]					; lengthOfInput		
 	MOV		EAX,	[EBX]
@@ -310,8 +312,34 @@ _signExists:
 _prepConversion:
 	MOV		EBX,		[EBP+32]					; lengthOfInput
 	MOV		ECX,		[EBX]
+	MOV		AH,			conversionReady
+	CMP		AH,			1
+	JE		_addAllBaseComponents
 
 _stringConversion:
+	
+	; Algorithm:
+	; max num is 2147483647 and -2147483648
+	; Note that EDX is already 0
+	; Note that EAX already has the latest number in it
+	; PUSH	OFFSET powerOfTen
+	; PUSH	ECX
+	; PUSH	EAX
+		; CALL POWERS OF 10 SUBROUTINE
+			; ECX = [EBP + 12]
+			; DEC	ECX
+			; MOV	EAX,	10
+			; MOV	EBX,	10
+			; _powerOfTen:
+				; MUL	EBX
+				; LOOP _powerOfTen
+			; EAX now has 1000000000 if ECX is 10
+			; update powerOfTen in memory
+
+			; MOV	EAX,	fullNum
+	; POP	EAX
+	; POP	ECX
+
 	; Move each item from the string into the AL register to work with
 	LODSB
 
@@ -319,25 +347,70 @@ _stringConversion:
 	SUB		AL,			lowAscii					; local variable
 	MOV		singleNum,	AL							; local variable
 	MOV		EAX,		DWORD PTR singleNum
+
+	; now that EAX has the number, we are going to multiply this by the power of 10
+	MOV		EBX,		powerOfTen
+	MUL		EBX
 	
-	; Algorithm:
-	; max num is 2147483647
-	; Note that EDX is already 0
-	; Note that EAX already has the latest number in it
-	; if ECX == 10:
-		; MOV	EBX,	1000000000
-		; MUL	EBX
-		; MOV	EDX,	EAX
-	; if ECX == 9:
-		; MOV	EBX,	100000000
-		; MUL	EBX
-		; Think about and test this...
+	; Now that we have this number in it's power of 10 component, move it to the stack to work with later
+	PUSH	EAX
+
+	; Repeat this process again until we have all the numbers on the stack
+	; LOOP _stringConversion
+
+	MOV		conversionReady,	1
+	JMP		_stringToInteger
+	
+_addAllBaseComponents:
+	
+
+
+
+	; compare EDX with 0, 
+
+	; MOV	EAX,	
+
+																; if ECX == 10:
+																	; MOV	EBX,	1000000000
+																; if ECX == 9:
+																	; MOV	EBX,	100000000
+																; if ECX == 8:
+																	; MOV	EBX,	10000000
+																; if ECX == 7:
+																	; MOV	EBX,	1000000
+																; if ECX == 6:
+																	; MOV	EBX,	100000
+																; if ECX == 5:
+																	; MOV	EBX,	10000
+																; if ECX == 4:
+																	; MOV	EBX,	1000
+																; if ECX == 3:
+																	; MOV	EBX,	100
+																; if ECX == 2:
+																	; MOV	EBX,	10
+																; if ECX == 1:
+																	; MOV	EBX,	1
+
+	; MUL	EBX
+	; PUSH EAX
+
+		; If EDX > 0 this means that the number is not 32 bit
+		; return to input
+
+	; ADD	EDX,	EAX
+
+	; after this loop,
+		; if num is 2147483647 and the first character is a (-), this is invalid
+			; return to input
+
+
 
 
 
 	; Subtract 48
 	; Convert to 32 bit
 	; multiply by 10*string length
+	; compare with EDX -- if EDX has a number in it after MUL, then this is larger than 32 bits
 	; add to EAX
 	; check sign - if negative, make this negative
 
