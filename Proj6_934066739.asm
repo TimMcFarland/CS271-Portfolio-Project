@@ -159,7 +159,7 @@ introduction ENDP
 ; ---------------------------------------------------------------------------------
 ReadVal	PROC
 
-	LOCAL	lowAscii:BYTE, highAscii:BYTE, numsFound:DWORD, count:BYTE, hasSign:DWORD
+	LOCAL	lowAscii:BYTE, highAscii:BYTE, numsFound:DWORD, singleNum:BYTE, hasSign:DWORD
 
 	MOV		lowAscii,	48
 	MOV		highAscii,	57
@@ -175,28 +175,30 @@ _userInput:
  	mGetString [EBP+8], [EBP+12], [EBP+16], [EBP+24], [EBP+28], [EBP+32]
 
 	MOV		EAX,		1
-	MOV		[EBP+24],	EAX					; reset isValid to True
+	MOV		[EBP+24],	EAX						; reset isValid to True
 _checkForLength:
-	MOV		EBX,	[EBP+32]				; lengthOfInput		
+	MOV		EBX,	[EBP+32]					; lengthOfInput		
 	MOV		EAX,	[EBX]
 
+	CMP		EAX,	0
+	JZ		_invalidInput
 	; if the string length is greather than what is allowed - it is not valid
-	CMP		EAX,	[EBP+36]				; maxInputLength			 
+	CMP		EAX,	[EBP+36]					; maxInputLength			 
 	JA		_invalidInput
 	JB		_checkForCharacters
 
 _checkForCharacters:
 
 	; set AL to character '0' and increment until '9'
-	MOV		AL,		lowAscii				; local variable
+	MOV		AL,		lowAscii					; local variable
 
 	; prepare counter for string evaluation
-	MOV		EBX,	[EBP+32]				; lengthOfInput
+	MOV		EBX,	[EBP+32]					; lengthOfInput
 	MOV		ECX,	[EBX]
 
 	; Take the string and see if the first item is a sign (+ or -)
-	MOV		EDI,	[EBP+12]				; inputFromUser
-	MOV		AH,		[EDI]
+	MOV		ESI,	[EBP+12]					; inputFromUser
+	MOV		AH,		[ESI]
 	CMP		AH,		'-'
 	JE		_containsSign
 	CMP		AH,		'+'
@@ -206,23 +208,27 @@ _checkForCharacters:
 	JMP		_evaluateString
 
 _containsSign:
-	; if the number is negative, move to the next character in the string
-	ADD		EDI,		1
+	; if the input has a sign, but nothing else, it is invalid
+	CMP		ECX,		1
+	JE		_invalidInput
+
+	; Otherwise, move to the next item, and indicate that it has a sign
+	ADD		ESI,		1
 	MOV		hasSign,	1
 	DEC		ECX
 	
-	; iterates through EDI and compares with AL at each step
+	; iterates through ESI and compares with AL at each step
 _evaluateString:
-	MOV		AH,		[EDI]						; for debugging purposes
-	CMP		AL,		[EDI]
+	MOV		AH,		[ESI]						; for debugging purposes
+	CMP		AL,		[ESI]
 	JE		_countUp
-	ADD		EDI,	1
+	ADD		ESI,	1
 	LOOP	_evaluateString
 	JMP		_testForNextAscii
 
 _countUp:
 	INC		numsFound							; local variable
-	ADD		EDI,	1
+	ADD		ESI,	1
 	LOOP	_evaluateString
 	JMP		_testForNextAscii
 
@@ -234,25 +240,20 @@ _testForNextAscii:
 _incrementAscii:
 	INC		AL
 
-	; this gives us a count that we will use to adjust ECX
-	MOV		AH,		AL
-	SUB		AH,		lowAscii
-	MOV		count,	AH	
-
 	; prepare counter for string evaluation
 	MOV		EBX,		[EBP+32]				; lengthOfInput
 	MOV		ECX,		[EBX]
 
 	; set pointer back to inputFromUser reference
-	MOV		EDI,		[EBP+12]			
-	MOV		BL,			[EDI]
+	MOV		ESI,		[EBP+12]			
+	MOV		BL,			[ESI]
 	CMP		hasSign,	1
 	JE		_moveUpOneByte	
 	JNE		_reevaluate
 
 	; since it's a negative, the first character is not considered, so ECX is one less
 _moveUpOneByte:
-	ADD		EDI,	1
+	ADD		ESI,	1
 	LOOP	_evaluateString
 
 	; increase the counter to work with the whole string after the loop
@@ -274,12 +275,12 @@ _evaluateLength:
 	JNE		_testForNums
 
 _signAdjustment:
-	; if a number has a negative in the front, then the max nums it will have is 1 less than the characters
+	; if a number has a sign in the front, then the max nums it will have is 1 less than the characters
 	DEC		EBX
 	JMP		_testForNums
 
 _testForNums:
- 	CMP		EBX,	numsFound					; local variable
+ 	CMP		EBX,		numsFound				; local variable
 	JNE		_invalidInput
 	JE		_stringToInteger
 
@@ -289,8 +290,51 @@ _invalidInput:
 	JMP		_userInput
 
 _stringToInteger:
-	; here the string is convered to an integer...glhf
-	; Put item into AL
+	; Here, each string element is 
+	; find userInput location
+	MOV		ESI,		[EBP+12]					; inputFromUser
+
+	CMP		hasSign,	1
+
+	JE		_signExists
+	JMP		_prepConversion
+
+_signExists:
+	; if there is a sign, point to the next item in the string
+	ADD		ESI,		1
+	MOV		EDX,		0
+	MOV		EBX,		[EBP+32]					; lengthOfInput
+	MOV		ECX,		[EBX]
+	DEC		ECX
+
+_prepConversion:
+	MOV		EBX,		[EBP+32]					; lengthOfInput
+	MOV		ECX,		[EBX]
+
+_stringConversion:
+	; Move each item from the string into the AL register to work with
+	LODSB
+
+	; covert that string into its integer version
+	SUB		AL,			lowAscii					; local variable
+	MOV		singleNum,	AL							; local variable
+	MOV		EAX,		DWORD PTR singleNum
+	
+	; Algorithm:
+	; max num is 2147483647
+	; Note that EDX is already 0
+	; Note that EAX already has the latest number in it
+	; if ECX == 10:
+		; MOV	EBX,	1000000000
+		; MUL	EBX
+		; MOV	EDX,	EAX
+	; if ECX == 9:
+		; MOV	EBX,	100000000
+		; MUL	EBX
+		; Think about and test this...
+
+
+
 	; Subtract 48
 	; Convert to 32 bit
 	; multiply by 10*string length
