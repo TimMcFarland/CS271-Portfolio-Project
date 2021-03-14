@@ -84,6 +84,7 @@ numArray				SDWORD		10	DUP(?)
 
 .code
 main PROC
+
 	; Introduction is shown
 	PUSH	OFFSET	programInstructions
 	PUSH	OFFSET	programHeader
@@ -123,6 +124,7 @@ main ENDP
 ; returns: None
 ; ---------------------------------------------------------------------------------
 introduction PROC
+	; THIS MUST BE REWRITTEN TO ONLY BE DONE BY THE MACRO!!!
 	PUSH	EBP	
 	MOV		EBP,	ESP
 	MOV		EDX,	[EBP+8]				; programHeader
@@ -153,33 +155,37 @@ introduction ENDP
 ; [EBP+20] = numArray
 ; [EBP+16] = SIZEOF inputFromUser
 ; [EBP+12] = inputFromUser
-; [EBP+8] = userPrompt
+; [EBP+8]  = userPrompt
 ;
 ; returns: None
 ; ---------------------------------------------------------------------------------
 ReadVal	PROC
 
-	LOCAL	lowAscii:BYTE, highAscii:BYTE, numsFound:DWORD, singleNum:BYTE, hasSign:DWORD, powerOfTen: DWORD, conversionReady: BYTE
+	LOCAL	lowAscii:BYTE, highAscii:BYTE, numsFound:DWORD, hasSign:DWORD, powerOfTen: DWORD, conversionReady: BYTE,
+			count:DWORD, singleNum:BYTE
 
+	; these are constants
 	MOV		lowAscii,	48
 	MOV		highAscii,	57
+	MOV		count,		0
 	; MUST invoke the mGetString Macro to get user input in the form of a string of digits
 	; Convert (using string primitives) the string of ASCII digits to its numeric value representation (SDWORD)
 		;	Validate the user's input is a valid number (no letters, symbols, etc).
 	; Store this value in a memory variable
 
 _userInput:
-	; reset the negative tracker and get input
+	; resets these trackers at each loop
 	MOV		hasSign,	0
 	MOV		numsFound,	0
-	MOV		stringConversionReady,	0
+	MOV		conversionReady,	0
+	MOV		powerOfTen,	0
  	mGetString [EBP+8], [EBP+12], [EBP+16], [EBP+24], [EBP+28], [EBP+32]
 
 	MOV		EAX,		1
-	MOV		[EBP+24],	EAX						; reset isValid to True
+	MOV		[EBP+24],	EAX							; reset isValid to True
 
 _checkForLength:
-	MOV		EBX,	[EBP+32]					; lengthOfInput		
+	MOV		EBX,	[EBP+32]						; lengthOfInput		
 	MOV		EAX,	[EBX]
 
 	CMP		EAX,	0
@@ -221,6 +227,9 @@ _containsSign:
 	
 	; iterates through ESI and compares with AL at each step
 _evaluateString:
+	
+	; create a subroutine here for debugging's sake!
+	;CALL	stringEvaluation
 	MOV		AH,		[ESI]						; for debugging purposes
 	CMP		AL,		[ESI]
 	JE		_countUp
@@ -312,9 +321,12 @@ _signExists:
 _prepConversion:
 	MOV		EBX,		[EBP+32]					; lengthOfInput
 	MOV		ECX,		[EBX]
+
+	MOV		AL,			[ESI]
+
 	MOV		AH,			conversionReady
 	CMP		AH,			1
-	JE		_addAllBaseComponents
+	JE		_prepForBaseComponents
 
 _stringConversion:
 	
@@ -322,77 +334,95 @@ _stringConversion:
 	; max num is 2147483647 and -2147483648
 	; Note that EDX is already 0
 	; Note that EAX already has the latest number in it
-	; PUSH	OFFSET powerOfTen
-	; PUSH	ECX
-	; PUSH	EAX
-		; CALL POWERS OF 10 SUBROUTINE
-			; ECX = [EBP + 12]
-			; DEC	ECX
-			; MOV	EAX,	10
-			; MOV	EBX,	10
-			; _powerOfTen:
-				; MUL	EBX
-				; LOOP _powerOfTen
-			; EAX now has 1000000000 if ECX is 10
-			; update powerOfTen in memory
 
-			; MOV	EAX,	fullNum
-	; POP	EAX
-	; POP	ECX
+	LEA		EDI,	powerOfTen
+	PUSH	EDI
+	PUSH	ECX
+	CALL	powersOfTen
 
 	; Move each item from the string into the AL register to work with
 	LODSB
 
+	MOV		AH,			0
 	; covert that string into its integer version
 	SUB		AL,			lowAscii					; local variable
 	MOV		singleNum,	AL							; local variable
+
 	MOV		EAX,		DWORD PTR singleNum
 
-	; now that EAX has the number, we are going to multiply this by the power of 10
+	; now that EAX has the number, we are going to multiply this by the power of 10 that was updated from the CALL
 	MOV		EBX,		powerOfTen
-	MUL		EBX
+	MUL		EBX										; this looks like singleNum * 10^lengthOfInput
 	
 	; Now that we have this number in it's power of 10 component, move it to the stack to work with later
 	PUSH	EAX
+
+	; After adding, if EDX > 0 that means there was overflow
+	MOV		EDX,		0
 
 	; Repeat this process again until we have all the numbers on the stack
 	; LOOP _stringConversion
 
 	MOV		conversionReady,	1
+	LOOP	_stringConversion
 	JMP		_stringToInteger
 	
+_prepForBaseComponents:
+	MOV		EAX,	0
+
 _addAllBaseComponents:
-	
+	; add each of the components together to make up the whole number
+	POP		EBX
+	ADD		EAX,	EBX
+	LOOP	_addAllBaseComponents
 
+	; if there is a carry flag, that means that the num is greater than 32 bits
+	JC		_invalidInput
 
+	; if the variable has a sign, make a two's complement of the value
+	CMP		hasSign,	1
+	JE		_negativeOfNum
+	JNE		_compareNumToMax
 
-	; compare EDX with 0, 
+_negativeOfNum:
+	; if number is subtracted by 1 and is STILL larger than the upperValidation
+	;	then the negative version of this will not fit within a 32-bit register
+	DEC		EAX
+	CMP		EAX,	[EBP+40]				; upperValidation
+	JA		_invalidInput
 
-	; MOV	EAX,	
+	; return number to original state and take the inverse
+	INC		EAX
+	NEG		EAX
+	JMP		_addToArray
 
-																; if ECX == 10:
-																	; MOV	EBX,	1000000000
-																; if ECX == 9:
-																	; MOV	EBX,	100000000
-																; if ECX == 8:
-																	; MOV	EBX,	10000000
-																; if ECX == 7:
-																	; MOV	EBX,	1000000
-																; if ECX == 6:
-																	; MOV	EBX,	100000
-																; if ECX == 5:
-																	; MOV	EBX,	10000
-																; if ECX == 4:
-																	; MOV	EBX,	1000
-																; if ECX == 3:
-																	; MOV	EBX,	100
-																; if ECX == 2:
-																	; MOV	EBX,	10
-																; if ECX == 1:
-																	; MOV	EBX,	1
+_compareNumToMax:
+	; if the number is greater than the upperValidation, it is no longer fit for a signed 32-bit integer
+	CMP		EAX,	[EBP+40]				; upperValidation
+	JA		_invalidInput
 
-	; MUL	EBX
-	; PUSH EAX
+_addToArray:
+
+	LEA		EBX,	count
+	PUSH	[EBP+20]
+	PUSH	EBX
+	PUSH	EAX
+	CALL insertArrayElement
+	; find the location where to put the next item -- starts at the end of the array
+;	MOV		EAX,	count
+;	MOV		EBX,	4
+;	MUL		EBX
+;
+;	MOV		EDI,	[EBP+20]
+;	ADD		EDI,	EAX
+;	MOV		[EDI],				
+
+	CMP		count,	9
+	JE		_finish
+	INC		count
+	JMP		_userInput
+
+	; Take EAX and move it into the array
 
 		; If EDX > 0 this means that the number is not 32 bit
 		; return to input
@@ -437,8 +467,113 @@ _addAllBaseComponents:
 ;	MOV		AL,		[EBP+12]
 ;	CALL	WriteInt
 	;POP		EBP
+	_finish:
 	RET		12
 ReadVal ENDP
+
+
+; ---------------------------------------------------------------------------------
+; Name: powersOfTen
+;
+; Creates the current power of ten based on the string representation of the number
+;	currently being evaluated in ReadVal.
+;
+; Preconditions: variable powerOfTen has a value and is passed as a reference
+;				 ECX is the place of the string representation of the number being evaluated
+;
+; Postconditions: None
+;
+; Receives:
+; [EBP+12] = stack location of powerOfTen (local variable of calling procedure)
+; [EBP+8] = ECX, which is the current 10s place being evaluated
+;
+; returns: powerOfTen (local variable to ReadVal) currently has a value
+; ---------------------------------------------------------------------------------
+powersOfTen PROC
+	PUSH	EBP
+	MOV		EBP,	ESP
+
+	; preserving EAX and ECX from calling routine
+	PUSH	EAX
+	PUSH	ECX
+	PUSH	EBX
+
+	; EAX is prepping to be a place holder for the power of 10's
+	MOV		EAX,	1
+
+	; set ECX to the current 10s place being evaluated
+	MOV		ECX,	[EBP+8]
+
+	; if ECX is 1, this doesn't need to be done
+	CMP		ECX,	1
+	JE		_assignPowerOfTen
+	DEC		ECX
+
+	MOV		EBX,	10
+
+	; find the exponent of 10^n
+_tenToTheN:
+	MUL		EBX
+	LOOP	_tenToTheN
+
+_assignPowerOfTen:
+	; now that we have our number, assign that to the powerOfTen (local from calling proc)
+	MOV		EBX,	[EBP+12]
+	MOV		[EBX],	EAX	
+
+	; restoring all registers
+	POP		EBX
+	POP		ECX
+	POP		EAX
+	
+	POP		EBP
+	RET		8	
+powersOfTen ENDP
+
+; ---------------------------------------------------------------------------------
+; Name: insertArrayElement
+;
+; This is a subprocedure to ReadVal. This takes a number that has been validated
+;	and adds it as an element to the array
+;	
+;
+; Preconditions: Element has been identified and tested
+;				
+; Postconditions: None
+;
+; Receives:
+; [EBP+16] = Array memory location
+; [EBP+12] = count, this represents what number will be added to array
+; [EBP+8] =	integer that is ready to be placed in array
+;
+; returns: powerOfTen (local variable to ReadVal) currently has a value
+; ---------------------------------------------------------------------------------
+insertArrayElement PROC
+	PUSH	EBP
+	MOV		EBP,	ESP
+
+	; preserve current registers
+	PUSH	EAX
+	PUSH	EBX
+
+	; find the location where to put the next item
+	MOV		EBX,	[EBP+12]				; count
+	MOV		EAX,	[EBX]
+	MOV		EBX,	4						
+	MUL		EBX
+
+	MOV		EDI,	[EBP+16]				; array
+	ADD		EDI,	EAX
+	MOV		EBX,	[EBP+8]					; integer ready to be placed
+	MOV		[EDI],	EBX
+
+	; restore registers
+	POP		EBX
+	POP		EAX
+
+	POP		EBP
+	RET		8	
+insertArrayElement ENDP
 
 WriteVal PROC
 	; Convert a numeric SDWORD value (input parameter, by value) to a string of ASCII digits
