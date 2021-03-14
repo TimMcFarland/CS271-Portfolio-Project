@@ -179,6 +179,7 @@ _userInput:
 	MOV		numsFound,	0
 	MOV		conversionReady,	0
 	MOV		powerOfTen,	0
+	MOV		singleNum, 0
  	mGetString [EBP+8], [EBP+12], [EBP+16], [EBP+24], [EBP+28], [EBP+32]
 
 	MOV		EAX,		1
@@ -213,7 +214,7 @@ _checkForCharacters:
 	JE		_containsSign
 
 	; If it is positive, evaluation can begin
-	JMP		_evaluateString
+	JMP		_stringEvaluation
 
 _containsSign:
 	; if the input has a sign, but nothing else, it is invalid
@@ -226,53 +227,18 @@ _containsSign:
 	DEC		ECX
 	
 	; iterates through ESI and compares with AL at each step
-_evaluateString:
-	
-	; create a subroutine here for debugging's sake!
-	;CALL	stringEvaluation
-	MOV		AH,		[ESI]						; for debugging purposes
-	CMP		AL,		[ESI]
-	JE		_countUp
-	ADD		ESI,	1
-	LOOP	_evaluateString
-	JMP		_testForNextAscii
 
-_countUp:
-	INC		numsFound							; local variable
-	ADD		ESI,	1
-	LOOP	_evaluateString
-	JMP		_testForNextAscii
+_stringEvaluation:
+	PUSH	ESI
+	PUSH	[EBP+32]							;lengthOfInput
+	LEA		EBX,	numsFound
+	PUSH	EBX
+	LEA		EDI,	hasSign
+	PUSH	EDI;xx
+	PUSH	ECX;xx
+	CALL	evaluateString
 
-_testForNextAscii:
-	CMP		AL,		highAscii					; local variable
-	JNE		_incrementAscii
-	JE		_evaluateLength
 
-_incrementAscii:
-	INC		AL
-
-	; prepare counter for string evaluation
-	MOV		EBX,		[EBP+32]				; lengthOfInput
-	MOV		ECX,		[EBX]
-
-	; set pointer back to inputFromUser reference
-	MOV		ESI,		[EBP+12]			
-	MOV		BL,			[ESI]
-	CMP		hasSign,	1
-	JE		_moveUpOneByte	
-	JNE		_reevaluate
-
-	; since it's a negative, the first character is not considered, so ECX is one less
-_moveUpOneByte:
-	ADD		ESI,	1
-	LOOP	_evaluateString
-
-	; increase the counter to work with the whole string after the loop
-_reevaluate:
-	INC		ECX
-	LOOP	_evaluateString
-	JMP		_evaluateLength
-	
 _evaluateLength:
 	; here, we are going to compare the count, which has accrued each time that number was found, and
 	;	we are going to compare that with 1 less than the maximum allowed input because that is the number
@@ -317,11 +283,13 @@ _signExists:
 	MOV		EBX,		[EBP+32]					; lengthOfInput
 	MOV		ECX,		[EBX]
 	DEC		ECX
+	JMP		_moveElement
 
 _prepConversion:
 	MOV		EBX,		[EBP+32]					; lengthOfInput
 	MOV		ECX,		[EBX]
 
+_moveElement:
 	MOV		AL,			[ESI]
 
 	MOV		AH,			conversionReady
@@ -337,6 +305,8 @@ _stringConversion:
 
 	LEA		EDI,	powerOfTen
 	PUSH	EDI
+	LEA		EBX,	hasSign
+	PUSH	EBX
 	PUSH	ECX
 	CALL	powersOfTen
 
@@ -346,9 +316,9 @@ _stringConversion:
 	MOV		AH,			0
 	; covert that string into its integer version
 	SUB		AL,			lowAscii					; local variable
-	MOV		singleNum,	AL							; local variable
+	MOV		singleNum,	AL							; Turned into DWORD to work with this!!!!
 
-	MOV		EAX,		DWORD PTR singleNum
+	MOVSX	EAX,		singleNum			; !!!!! DEBUG !!!! on the second pass, this becomes a higher value -- why is the question.
 
 	; now that EAX has the number, we are going to multiply this by the power of 10 that was updated from the CALL
 	MOV		EBX,		powerOfTen
@@ -407,70 +377,110 @@ _addToArray:
 	PUSH	[EBP+20]
 	PUSH	EBX
 	PUSH	EAX
-	CALL insertArrayElement
-	; find the location where to put the next item -- starts at the end of the array
-;	MOV		EAX,	count
-;	MOV		EBX,	4
-;	MUL		EBX
-;
-;	MOV		EDI,	[EBP+20]
-;	ADD		EDI,	EAX
-;	MOV		[EDI],				
+	CALL insertArrayElement			
 
 	CMP		count,	9
 	JE		_finish
 	INC		count
 	JMP		_userInput
 
-	; Take EAX and move it into the array
-
-		; If EDX > 0 this means that the number is not 32 bit
-		; return to input
-
-	; ADD	EDX,	EAX
-
-	; after this loop,
-		; if num is 2147483647 and the first character is a (-), this is invalid
-			; return to input
-
-
-
-
-
-	; Subtract 48
-	; Convert to 32 bit
-	; multiply by 10*string length
-	; compare with EDX -- if EDX has a number in it after MUL, then this is larger than 32 bits
-	; add to EAX
-	; check sign - if negative, make this negative
-
-
-
-	; go through all of the characters and see if there are any non number characters
-
-
-	; Compare each item in the string with a range of numbers
-	
-		
-		; if there are any numbers that are outside of the bounds, send it back to input
-		; if the whole item is a number, convert it to an integer
-		; compare the integer with the upper bounds
-			; if this is within the bounds, add it to the array
-			; if this is outside of the bounds, send the user back to input
-
-	; validate if this string is a SDWORD that fits in 32 bits.
-		; if this meets the criteria, add this SDWORD into an array
-		; if this doesn't meet the critera
-			; change isValid to 0
-				; call macro again
-
-;	MOV		AL,		[EBP+12]
-;	CALL	WriteInt
-	;POP		EBP
 	_finish:
 	RET		12
 ReadVal ENDP
 
+; ---------------------------------------------------------------------------------
+; Name: evaluateString
+;
+; iterates through the string to determine if it the right amount of numbers to 
+;	qualify for further evaluation
+;
+; Preconditions: 
+;
+; Postconditions: None
+;
+; Receives:
+
+; [EBP+24] = inputFromUser
+; [EBP+20] = lengthOfInput
+; [EBP+16] = numsFound; this represents the amount of numbers found in the input
+; [EBP+12] = hasSign; local variable from calling procedure this indicates if there is a sign
+; [EBP+8] = ECX, which is the length of the string
+;
+; returns: powerOfTen (local variable to ReadVal) currently has a value
+; ---------------------------------------------------------------------------------
+evaluateString PROC
+	PUSH	EBP
+	MOV		EBP,	ESP
+	PUSHAD
+
+	; assigning numsFound to the EDX register
+	MOV		EBX,	[EBP+16]
+	MOV		EDX,	[EBX]
+
+	MOV		AL,		'0'							; this is the lowAscii value
+
+_evaluateString:
+	; if an item is found, increment the counter that keeps track of numbers
+	;	if the item is not found, go to the next ASCII character and try again
+	MOV		EBX,	[EBP+24]
+	MOV		ESI,	EBX							; userInput
+	MOV		AH,		[ESI]						; for debugging purposes
+	CMP		AL,		[ESI]
+	JE		_countUp
+
+	ADD		ESI,	1
+	LOOP	_evaluateString
+	JMP		_testForNextAscii
+
+_countUp:
+	INC		EDX									; numsFound
+	ADD		ESI,	1
+	LOOP	_evaluateString
+	JMP		_testForNextAscii
+
+_testForNextAscii:
+	CMP		AL,		'9'							; highAscii
+	JNE		_incrementAscii
+	JE		_exitProc
+
+_incrementAscii:
+	INC		AL
+
+	; prepare counter for string evaluation
+	MOV		EBX,	[EBP+20]				; lengthOfInput
+	MOV		ECX,	[EBX]
+
+	; set pointer back to inputFromUser reference
+	MOV		ESI,	[EBP+24]				; inputFromUser
+	MOV		BL,		[ESI]
+
+	MOV		EBX,	[EBP+12]				; hasSign
+	MOV		EDI,	[EBX]
+	CMP		EDI,	1
+	JE		_moveUpOneByte	
+	JNE		_reevaluate
+
+	; since it's a negative, the first character is not considered, so ECX is one less
+_moveUpOneByte:
+	ADD		ESI,	1
+	LOOP	_evaluateString
+
+	; increase the counter to work with the whole string after the loop
+_reevaluate:
+	INC		ECX
+	LOOP	_evaluateString
+	JMP		_exitProc
+
+_exitProc:
+	; return numsFound
+	MOV		EAX,	[EBP+16]
+	MOV		[EAX],	EDX
+
+	POPAD
+
+	POP		EBP
+	RET		20
+evaluateString ENDP
 
 ; ---------------------------------------------------------------------------------
 ; Name: powersOfTen
@@ -484,7 +494,8 @@ ReadVal ENDP
 ; Postconditions: None
 ;
 ; Receives:
-; [EBP+12] = stack location of powerOfTen (local variable of calling procedure)
+; [EBP+16] = stack location of powerOfTen (local variable of calling procedure)
+; [EBP+12] = hasSign; this indicates if there is a sign
 ; [EBP+8] = ECX, which is the current 10s place being evaluated
 ;
 ; returns: powerOfTen (local variable to ReadVal) currently has a value
@@ -507,6 +518,18 @@ powersOfTen PROC
 	; if ECX is 1, this doesn't need to be done
 	CMP		ECX,	1
 	JE		_assignPowerOfTen
+
+	; if there is a sign involved, this should be one less
+	MOV		EDX,	[EBP+16]
+	MOV		EBX,	[EDX]
+	CMP		EBX,	1
+	JE		_adjustForSign
+	JMP		_prepForExp
+
+_adjustForSign:
+	DEC		ECX
+	
+_prepForExp:
 	DEC		ECX
 
 	MOV		EBX,	10
@@ -518,7 +541,7 @@ _tenToTheN:
 
 _assignPowerOfTen:
 	; now that we have our number, assign that to the powerOfTen (local from calling proc)
-	MOV		EBX,	[EBP+12]
+	MOV		EBX,	[EBP+16]
 	MOV		[EBX],	EAX	
 
 	; restoring all registers
@@ -527,7 +550,7 @@ _assignPowerOfTen:
 	POP		EAX
 	
 	POP		EBP
-	RET		8	
+	RET		12
 powersOfTen ENDP
 
 ; ---------------------------------------------------------------------------------
@@ -572,7 +595,7 @@ insertArrayElement PROC
 	POP		EAX
 
 	POP		EBP
-	RET		8	
+	RET		12	
 insertArrayElement ENDP
 
 WriteVal PROC
