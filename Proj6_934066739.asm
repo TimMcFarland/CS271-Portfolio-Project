@@ -448,12 +448,9 @@ ReadVal ENDP
 ; iterates through the string to determine if it the right amount of numbers to 
 ;	qualify for further evaluation
 ;
-; Preconditions: 
-;
 ; Postconditions: None
 ;
 ; Receives:
-
 ; [EBP+24] = inputFromUser
 ; [EBP+20] = lengthOfInput
 ; [EBP+16] = numsFound; this represents the amount of numbers found in the input
@@ -635,7 +632,7 @@ powersOfTen ENDP
 ; [EBP+12] = count, this represents what number will be added to array
 ; [EBP+8] =	integer that is ready to be placed in array
 ;
-; returns: powerOfTen (local variable to ReadVal) currently has a value
+; returns: updates numArray with element
 ; ---------------------------------------------------------------------------------
 insertArrayElement PROC
 	PUSH	EBP
@@ -667,6 +664,52 @@ insertArrayElement ENDP
 WriteVal PROC
 	; Convert a numeric SDWORD value (input parameter, by value) to a string of ASCII digits
 	; Invoke the mDisplayString macro to print the ASCII representation of the SDWORD value to the output
+	LOCAL	hasSign:DWORD, powerOfTen: DWORD, conversionReady: BYTE,
+			count:DWORD, singleNum:BYTE
+
+	MOV		EDI,	stringHolder
+	MOV		ESI,	numArray
+	MOV		EBX,	0
+	MOV		ECX,	lengthOf numArray
+
+_loadNumFromArray:
+	LODSD
+
+_breakDownEachElement:
+	SUB		EAX,	EBX
+
+	CMP		EAX,	0
+	JZ		_loadNextNum
+
+	PUSH	EAX
+
+	CALL	powersOfTen
+	
+	; Find the base component in EAX
+	DIV		powerOfTen
+
+	; this is the previous value of EAX -- work with this later
+	POP		fullNum
+
+	; EAX is now the single number
+	PUSH	EAX
+
+	ADD		EAX,		48
+	MOV		singleNum,	EAX
+	MOVSX	AL,			singleNum
+	STORE	SB
+
+	POP		EAX
+
+	MOV		EBX,	powerOfTen
+	MUL		EBX
+	MOV		EBX,	EAX
+
+	MOV		EAX,	fullNum
+	JMP		_breakDownEachElement
+
+_loadNextNum:
+	LOOP	_loadNumFromArray
 WriteVal ENDP
 END main
 	
