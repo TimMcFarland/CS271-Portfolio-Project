@@ -1,12 +1,14 @@
 TITLE Proj6_934066739     (Proj6_934066739.asm)
 
 ; Author: Tim McFarland
-; Last Modified: 3/6/2021
+; Last Modified: 3/15/2021
 ; OSU email address: mcfarlti@oregonstate.edu
 ; Course number/section:   CS271 Section 400
 ; Project Number: 6              Due Date: 3/18/2021
-; Description: This file is provided as a template from which you may work
-;              when developing assembly projects in CS271.
+; Description: Receives 10 different integers from a user and validates whether or not those integers
+;	fit within a 32 bit register. If they do, then those numbers are printed to the screen, and the 
+;	sum of those numbers as well as the average of those numbers is also shown. This is all done
+;	using string primitives.
 
 INCLUDE Irvine32.inc
 
@@ -70,10 +72,12 @@ ENDM
 ; ---------------------------------------------------------------------------------
 ; Name: mDisplayString
 ;
-; Provides prompt to user, takes input from user and displays certain prompts depending
-;	on if the the information input by the user is valid or not.
+; Displays the following items: instructions to user, valid nums that user input,
+;	and the sum and average of the input.
 ;
-; Preconditions: All inputs are already defined
+; Preconditions: introduction is defined in the first use case, numArray is defined
+;	in the second use case, sum is defined in the third use case, and average is 
+;	defined in the fourth use case
 ;
 ; Receives:
 ; prompt = userPrompt, which provides direction to the user
@@ -87,7 +91,7 @@ ENDM
 ;		   userInput = userInput is updated
 ;		   isIntro is changed to 0 if isIntro is initially 1
 ; ---------------------------------------------------------------------------------
-mDisplayString	MACRO isItIntro:REQ, headerText:REQ, instructions:REQ
+mDisplayString	MACRO isItIntro:REQ, isItArray:REQ, isItSum:REQ, isItAvg:REQ, headerText:REQ, instructions:REQ
 
 	LOCAL	_endDisplayString
 	LOCAL	_introduction
@@ -96,9 +100,9 @@ mDisplayString	MACRO isItIntro:REQ, headerText:REQ, instructions:REQ
 	PUSHAD
 
 	; if this is an intro, display the intro header
-	MOV		EBX,	isItIntro
-	MOV		EAX,	[EBX]
-	CMP		EAX,	1
+	MOV		EBX,			isItIntro
+	MOV		EAX,			[EBX]
+	CMP		EAX,			1
 	JE		_introduction
 
 _introduction:
@@ -135,9 +139,17 @@ programInstructions		BYTE		"Please provide 10 signed decimal integers.", 13, 10,
 
 userPrompt				BYTE		"please enter a signed number: ", 0
 
+numsHeader				BYTE		"You entered for following numbers: ", 13, 10, 0
+
+sumHeader				BYTE		"The sum of these numbers is: ", 0
+
+avgHeader				BYTE		"The average of these numbers is: ", 0
+
 inputFromUser			BYTE		20	DUP(0)		; set to a size of 12 since -2,147,482,648 is the longest character allowed
 
 lengthOfInput			DWORD		?
+
+stringForOutput			BYTE		12	DUP(0)
 
 ; variables used in data validation
 errorMessage			BYTE		"ERROR: You did not enter a signed number or your number was too big.", 13, 10
@@ -148,35 +160,43 @@ isValid					DWORD		1
 ; array used to keep track of items
 numArray				SDWORD		9 DUP(?)
 
-; intro is initialized to True, and will be placed as false after introduction is called
+; Initializing items that manage mDisplayString macro
 isIntro					DWORD		1
+isArray					DWORD		0
+isSum					DWORD		0
+isAvg					DWORD		0
 
 .code
 main PROC
 
 	; Introduction is shown
 
-	mDisplayString OFFSET isIntro, OFFSET programHeader, OFFSET programInstructions
+	mDisplayString OFFSET isIntro, OFFSET isArray, OFFSET isSum, OFFSET isAvg, OFFSET programHeader, OFFSET programInstructions
 
 
 	PUSH	lowerValidation
 	PUSH	upperValidation
 	PUSH	maxInputLength
-	PUSH	OFFSET	lengthOfInput
-	PUSH	OFFSET	errorMessage
+	PUSH	OFFSET		lengthOfInput
+	PUSH	OFFSET		errorMessage
 	PUSH	isValid
-	PUSH	OFFSET	numArray
-	PUSH	SIZEOF	inputFromUser
-	PUSH	OFFSET	inputFromUser
-	PUSH	OFFSET	userPrompt
+	PUSH	OFFSET		numArray
+	PUSH	SIZEOF		inputFromUser
+	PUSH	OFFSET		inputFromUser
+	PUSH	OFFSET		userPrompt
 	CALL	ReadVal
 
-
-
+	PUSH	isAvg
+	PUSH	isSum
+	PUSH	isArray
+	PUSH	isIntro
+	PUSH	OFFSET		numsHeader
+	PUSH	OFFSET		avgHeader
+	PUSH	OFFSET		sumHeader
+	PUSH	LENGTHOF	numArray
+	PUSH	OFFSET		numArray
+	PUSH	OFFSET		stringForOutput
 	CALL	WriteVal
-		; call power of 10
-		; take that number and divide that by the number
-		; truncate any remainders
 
 	Invoke ExitProcess, 0	; exit to operating system
 main ENDP
@@ -184,7 +204,8 @@ main ENDP
 ; ---------------------------------------------------------------------------------
 ; Name: ReadVal
 ;
-; Provides introduction to program and gives information to user on how to input information
+; Takes input from user and validates whether the signed input will fit within a 32
+;	bit register
 ;
 ; Preconditions: variables programHeader and programInstructions are string variables
 ;
@@ -202,7 +223,7 @@ main ENDP
 ; [EBP+12] = inputFromUser
 ; [EBP+8]  = userPrompt
 ;
-; returns: None
+; returns: numArray is filled with signed integers that fit a 32-bit register
 ; ---------------------------------------------------------------------------------
 ReadVal	PROC
 
@@ -351,8 +372,6 @@ _stringConversion:
 
 	LEA		EDI,		powerOfTen
 	PUSH	EDI
-	LEA		EBX,		hasSign
-	PUSH	EBX
 	PUSH	ECX
 	CALL	powersOfTen
 
@@ -462,6 +481,7 @@ ReadVal ENDP
 evaluateString PROC
 	PUSH	EBP
 	MOV		EBP,	ESP
+
 	PUSHAD
 
 	; assigning numsFound to the EDX register
@@ -557,8 +577,7 @@ evaluateString ENDP
 ; Postconditions: None
 ;
 ; Receives:
-; [EBP+16] = stack location of powerOfTen (local variable of calling procedure)
-; [EBP+12] = hasSign; this indicates if there is a sign
+; [EBP+12] = stack location of powerOfTen (local variable of calling procedure)
 ; [EBP+8] = ECX, which is the current 10s place being evaluated
 ;
 ; returns: powerOfTen (local variable to ReadVal) currently has a value
@@ -567,10 +586,8 @@ powersOfTen PROC
 	PUSH	EBP
 	MOV		EBP,	ESP
 
-	; preserving EAX and ECX from calling routine
-	PUSH	EAX
-	PUSH	ECX
-	PUSH	EBX
+	; preserving previous registers
+	PUSHAD
 
 	; EAX is prepping to be a place holder for the power of 10's
 	MOV		EAX,	1
@@ -581,16 +598,7 @@ powersOfTen PROC
 	; if ECX is 1, this doesn't need to be done
 	CMP		ECX,	1
 	JE		_assignPowerOfTen
-
-	; if there is a sign involved, this should be one less
-	MOV		EDX,	[EBP+16]
-	MOV		EBX,	[EDX]
-	CMP		EBX,	1
-	JE		_adjustForSign
 	JMP		_prepForExp
-
-_adjustForSign:
-	DEC		ECX
 	
 _prepForExp:
 	DEC		ECX
@@ -604,16 +612,14 @@ _tenToTheN:
 
 _assignPowerOfTen:
 	; now that we have our number, assign that to the powerOfTen (local from calling proc)
-	MOV		EBX,	[EBP+16]
+	MOV		EBX,	[EBP+12]
 	MOV		[EBX],	EAX	
 
 	; restoring all registers
-	POP		EBX
-	POP		ECX
-	POP		EAX
+	POPAD
 	
 	POP		EBP
-	RET		12
+	RET		8
 powersOfTen ENDP
 
 ; ---------------------------------------------------------------------------------
@@ -661,31 +667,93 @@ insertArrayElement PROC
 	RET		12	
 insertArrayElement ENDP
 
+; ---------------------------------------------------------------------------------
+; Name: WriteVal
+;
+; Shows the valid inputs that the user input. Also shows the sum and the floored average
+;	
+; Preconditions: numArray is filled with numbers that fit within a 32-bit register
+;
+; Postconditions: None
+;
+; Receives:
+; [EBP+16] = LENGTHOF numArray
+; [EBP+12] = numArray
+; [EBP+8]  = stringForOutput
+;
+; returns: None
+; ---------------------------------------------------------------------------------
 WriteVal PROC
 	; Convert a numeric SDWORD value (input parameter, by value) to a string of ASCII digits
 	; Invoke the mDisplayString macro to print the ASCII representation of the SDWORD value to the output
-	LOCAL	hasSign:DWORD, powerOfTen: DWORD, conversionReady: BYTE,
-			count:DWORD, singleNum:BYTE
+	LOCAL	powerOfTen: DWORD, fullNum: DWORD, singleNum:DWORD, amountOfDigits:DWORD
 
-	MOV		EDI,	stringHolder
-	MOV		ESI,	numArray
+	MOV		EDI,	[EBP+8]						; stringForOutput
+	MOV		ESI,	[EBP+12]					; numArray
 	MOV		EBX,	0
-	MOV		ECX,	lengthOf numArray
+	MOV		ECX,	[EBP+16]					; LENGTHOF numArray
+	INC		ECX
+
+	; initialize local variables
+	MOV		amountOfDigits,	0
+	MOV		powerOfTen,		1
 
 _loadNumFromArray:
 	LODSD
 
-_breakDownEachElement:
-	SUB		EAX,	EBX
+	; check to see if the sign flag is raised
+	CMP		EAX,	1
+	JS		_loadSign
+	JMP		_breakDownEachElement
 
-	CMP		EAX,	0
-	JZ		_loadNextNum
-
+_loadSign:
+	; change to the positive version
+	NEG		EAX
+	; since AL is changed, preserve EAX
 	PUSH	EAX
 
+	; add - to the string representation of the number
+	MOV		AL,		'-'
+	STOSB
+	
+	; return the value back to itself
+	POP		EAX
+
+_breakDownEachElement:
+	; EBX, the first time, is 0, otherwise, subtract the 10s component
+	SUB		EAX,	EBX
+
+	; once all components are removed -- evaluate the next item in numArray
+	CMP		EAX,	0
+	JZ		_printToScreen
+
+	; save EAX for later
+	PUSH	EAX
+
+	PUSH	EAX
+	LEA		EDX,	amountOfDigits
+	PUSH	EDX
+	CALL	findDigitPlace
+
+	MOV		EBX,	amountOfDigits
+
+	; find the power of 10 currently being evaluated
+	LEA		EDX,		powerOfTen
+	PUSH	EDX
+	PUSH	EBX
 	CALL	powersOfTen
 	
+	; in case powerOfTen ever becomes 0
+	CMP		powerOfTen,	0
+	JE		_safeForDividing
+	JMP		_nowToDivide
+
+_safeForDividing:
+	INC		powerOfTen
+
+_nowToDivide:
 	; Find the base component in EAX
+	MOV		EDX,	0
 	DIV		powerOfTen
 
 	; this is the previous value of EAX -- work with this later
@@ -694,25 +762,90 @@ _breakDownEachElement:
 	; EAX is now the single number
 	PUSH	EAX
 
+_addToString:
+	; put the single number into the string to display to the screen
 	ADD		EAX,		48
 	MOV		singleNum,	EAX
-	MOVSX	AL,			singleNum
-	STORE	SB
+	MOV		AL,			BYTE PTR singleNum
 
+	STOSB
+
+	; take that individual number and find it's power of ten
 	POP		EAX
-
 	MOV		EBX,	powerOfTen
 	MUL		EBX
+
+	; prepare the power of ten number to be subtracted later from the full number
 	MOV		EBX,	EAX
 
 	MOV		EAX,	fullNum
+
 	JMP		_breakDownEachElement
 
+_printToScreen:
+	
+	
 _loadNextNum:
 	LOOP	_loadNumFromArray
+	RET 12
+
 WriteVal ENDP
-END main
 	
+; ---------------------------------------------------------------------------------
+; Name: findDigitPlace
+;
+; finds how many digits are in a given number; uses a brute force method
+;	
+; Preconditions: the maximum and minimum allowed values are defined constants
+;
+; Postconditions: None
+;
+; Receives:
+; [EBP+12] = the current number being evaluated
+; [EBP+8]  = amountOfDigits
+;
+; returns: the amount of digits in the current number being evaluated
+; ---------------------------------------------------------------------------------
+findDigitPlace PROC
+	LOCAL	ten:DWORD
+
+	PUSHAD
+
+	; EBX will act as a counter
+	MOV		EBX,	0
+	MOV		ten,	10
+
+	; EDX is initialized to the highest 10s allowed
+	MOV		EAX,		1000000000
+
+	; Compare each item 
+_findCount:
+	MOV		EDX,	0
+	CMP		[EBP+12],	EAX
+	JAE		_increaseCount
+	DIV		ten
+	CMP		EAX,	0
+	JNZ		_findCount
+	JZ		_endOfProc
+
+_increaseCount:
+	INC		EBX
+	MOV		EDX,	0
+	DIV		ten
+	CMP		EAX,	0
+	JZ		_endOfProc
+	JMP		_findCount
+
+_endOfProc:
+	
+	MOV		EDX,	[EBP+8]
+	MOV		[EDX],	EBX
+	POPAD
+
+	RET	8
+findDigitPlace ENDP
+
+END main
 
 
 ;------------------------------------------------
