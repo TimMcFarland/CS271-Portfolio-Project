@@ -145,13 +145,14 @@ _printArray:
 	MOV		EAX,			[EBX]
 	CMP		EAX,			1
 	JE		_printHeader
+	JMP		_printEachString
 
 _printHeader:
 	; prints the header
 	MOV		EDX,	headerText
 	CALL	WriteString
 
-	; set to 0
+	; make it so the nums header will no longer print
 	MOV		EBX,	printNumsHeader
 	MOV		EDX,	0
 	MOV		[EBX],	EDX
@@ -160,6 +161,11 @@ _printEachString:
 	MOV		EDX,	stringToPrint
 	CALL	WriteString
 	MOV		EDX,	0
+
+	; make it so the nums header will no longer print
+	MOV		EBX,	printNumsHeader
+	MOV		EDX,	0
+	MOV		[EBX],	EDX
 
 _printSum:
 
@@ -744,10 +750,10 @@ WriteVal PROC
 	; Invoke the mDisplayString macro to print the ASCII representation of the SDWORD value to the output
 	LOCAL	powerOfTen: DWORD, fullNum: DWORD, singleNum:DWORD, amountOfDigits:DWORD
 
-	MOV		EDI,	[EBP+8]						; stringForOutput
 	MOV		ESI,	[EBP+12]					; numArray
 	MOV		EBX,	0
 	MOV		ECX,	[EBP+16]					; LENGTHOF numArray
+	INC		ECX
 	INC		ECX
 
 	; initialize local variables
@@ -755,6 +761,8 @@ WriteVal PROC
 	MOV		powerOfTen,		1
 
 _loadNumFromArray:
+	MOV		EDI,	[EBP+8]						; stringForOutput
+
 	LODSD
 
 	MOV		EBX,	0
@@ -844,10 +852,10 @@ _printToScreen:
 ;	CMP		ECX,	1
 ;	JE		_printAndLoadNextNum
 	; add a comma and a space to the string
-;	MOV		AL,		','
-;	STOSB
-;	MOV		AL,		' '
-;	STOSB
+	MOV		AL,		','
+	STOSB
+	MOV		AL,		' '
+	STOSB
 	
 _loadNextNum:
 	; after printing, print the next num
@@ -856,6 +864,8 @@ _loadNextNum:
 
 _printAndLoadNextNum:
 	mDisplayString OFFSET isIntro, OFFSET isArray, OFFSET isSum, OFFSET isAvg, OFFSET printHeaderForArray, OFFSET numsHeader, OFFSET stringForOutput, OFFSET stringForOutput
+	CMP		ECX,	0
+	JZ		_finish
 	JMP		_loadNumFromArray
 
 _finish:
