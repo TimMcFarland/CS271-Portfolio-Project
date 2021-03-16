@@ -91,10 +91,14 @@ ENDM
 ;		   userInput = userInput is updated
 ;		   isIntro is changed to 0 if isIntro is initially 1
 ; ---------------------------------------------------------------------------------
-mDisplayString	MACRO isItIntro:REQ, isItArray:REQ, isItSum:REQ, isItAvg:REQ, headerText:REQ, instructions:REQ
+mDisplayString	MACRO isItIntro:REQ, isItArray:REQ, isItSum:REQ, isItAvg:REQ, printNumsHeader:REQ, headerText:REQ, instructions:REQ, stringToPrint:REQ
 
 	LOCAL	_endDisplayString
 	LOCAL	_introduction
+	LOCAL	_printArray
+	LOCAL	_printSum
+	LOCAL	_printAvg
+	LOCAL	_printEachString
 
 	; preserve all registers
 	PUSHAD
@@ -104,6 +108,21 @@ mDisplayString	MACRO isItIntro:REQ, isItArray:REQ, isItSum:REQ, isItAvg:REQ, hea
 	MOV		EAX,			[EBX]
 	CMP		EAX,			1
 	JE		_introduction
+
+	MOV		EBX,			isItArray
+	MOV		EAX,			[EBX]
+	CMP		EAX,			1
+	JE		_printArray
+
+	MOV		EBX,			isItSum
+	MOV		EAX,			[EBX]
+	CMP		EAX,			1
+	JE		_printSum
+
+	MOV		EBX,			isItAvg
+	MOV		EAX,			[EBX]
+	CMP		EAX,			1
+	JE		_printAvg
 
 _introduction:
 	MOV		EDX,	headerText
@@ -116,6 +135,35 @@ _introduction:
 	MOV		EDX,	0
 	MOV		[EBX],	EDX
 	JMP		_endDisplayString
+
+_printArray:
+	; ---------------------------------------------------------
+	; prints all the items that are in the array in string form
+	;	if this is the first value, print a header
+	; ---------------------------------------------------------
+	MOV		EBX,			printNumsHeader
+	MOV		EAX,			[EBX]
+	CMP		EAX,			1
+	JE		_printHeader
+
+_printHeader:
+	; prints the header
+	MOV		EDX,	headerText
+	CALL	WriteString
+
+	; set to 0
+	MOV		EBX,	printNumsHeader
+	MOV		EDX,	0
+	MOV		[EBX],	EDX
+
+_printEachString:
+	MOV		EDX,	stringToPrint
+	CALL	WriteString
+	MOV		EDX,	0
+
+_printSum:
+
+_printAvg:
 
 
 _endDisplayString:
@@ -139,7 +187,7 @@ programInstructions		BYTE		"Please provide 10 signed decimal integers.", 13, 10,
 
 userPrompt				BYTE		"please enter a signed number: ", 0
 
-numsHeader				BYTE		"You entered for following numbers: ", 13, 10, 0
+numsHeader				BYTE		"You entered the following numbers: ", 13, 10, 0
 
 sumHeader				BYTE		"The sum of these numbers is: ", 0
 
@@ -149,7 +197,7 @@ inputFromUser			BYTE		20	DUP(0)		; set to a size of 12 since -2,147,482,648 is t
 
 lengthOfInput			DWORD		?
 
-stringForOutput			BYTE		12	DUP(0)
+stringForOutput			BYTE		14	DUP(0)
 
 ; variables used in data validation
 errorMessage			BYTE		"ERROR: You did not enter a signed number or your number was too big.", 13, 10
@@ -162,16 +210,16 @@ numArray				SDWORD		9 DUP(?)
 
 ; Initializing items that manage mDisplayString macro
 isIntro					DWORD		1
-isArray					DWORD		0
-isSum					DWORD		0
-isAvg					DWORD		0
+isArray					DWORD		1
+isSum					DWORD		1
+isAvg					DWORD		1
+printHeaderForArray		DWORD		1
 
 .code
 main PROC
 
 	; Introduction is shown
-
-	mDisplayString OFFSET isIntro, OFFSET isArray, OFFSET isSum, OFFSET isAvg, OFFSET programHeader, OFFSET programInstructions
+	mDisplayString OFFSET isIntro, OFFSET isArray, OFFSET isSum, OFFSET isAvg, OFFSET printHeaderForArray, OFFSET programHeader, OFFSET programInstructions, OFFSET stringForOutput
 
 
 	PUSH	lowerValidation
@@ -186,10 +234,10 @@ main PROC
 	PUSH	OFFSET		userPrompt
 	CALL	ReadVal
 
-	PUSH	isAvg
-	PUSH	isSum
-	PUSH	isArray
-	PUSH	isIntro
+	PUSH	OFFSET		isAvg
+	PUSH	OFFSET		isSum
+	PUSH	OFFSET		isArray
+	PUSH	OFFSET		isIntro
 	PUSH	OFFSET		numsHeader
 	PUSH	OFFSET		avgHeader
 	PUSH	OFFSET		sumHeader
@@ -677,9 +725,17 @@ insertArrayElement ENDP
 ; Postconditions: None
 ;
 ; Receives:
-; [EBP+16] = LENGTHOF numArray
-; [EBP+12] = numArray
-; [EBP+8]  = stringForOutput
+; [EBP+48]	= address of printHeaderForArray
+; [EBP+44]	= address of isAvg
+; [EBP+40]	= address of isSum
+; [EBP+36]	= address of isArray 
+; [EBP+32]	= address of isIntro
+; [EBP+28]	= address of numsHeader
+; [EBP+24]	= address of avgHeader
+; [EBP+20]	= address of sumHeader
+; [EBP+16]	= LENGTHOF numArray
+; [EBP+12]	= address of numArray
+; [EBP+8]	= address of stringForOutput
 ;
 ; returns: None
 ; ---------------------------------------------------------------------------------
@@ -700,6 +756,8 @@ WriteVal PROC
 
 _loadNumFromArray:
 	LODSD
+
+	MOV		EBX,	0
 
 	; check to see if the sign flag is raised
 	CMP		EAX,	1
@@ -779,16 +837,29 @@ _addToString:
 	MOV		EBX,	EAX
 
 	MOV		EAX,	fullNum
-
 	JMP		_breakDownEachElement
 
 _printToScreen:
-	
+	; don't add a comma to the last item
+;	CMP		ECX,	1
+;	JE		_printAndLoadNextNum
+	; add a comma and a space to the string
+;	MOV		AL,		','
+;	STOSB
+;	MOV		AL,		' '
+;	STOSB
 	
 _loadNextNum:
-	LOOP	_loadNumFromArray
-	RET 12
+	; after printing, print the next num
+	LOOP	_printAndLoadNextNum
+	JMP		_finish
 
+_printAndLoadNextNum:
+	mDisplayString OFFSET isIntro, OFFSET isArray, OFFSET isSum, OFFSET isAvg, OFFSET printHeaderForArray, OFFSET numsHeader, OFFSET stringForOutput, OFFSET stringForOutput
+	JMP		_loadNumFromArray
+
+_finish:
+	RET 44
 WriteVal ENDP
 	
 ; ---------------------------------------------------------------------------------
