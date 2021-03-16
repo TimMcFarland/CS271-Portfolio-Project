@@ -99,6 +99,7 @@ mDisplayString	MACRO isItIntro:REQ, isItArray:REQ, isItSum:REQ, isItAvg:REQ, pri
 	LOCAL	_printSum
 	LOCAL	_printAvg
 	LOCAL	_printEachString
+	LOCAL	_printHeader
 
 	; preserve all registers
 	PUSHAD
@@ -143,7 +144,7 @@ _printArray:
 	; ---------------------------------------------------------
 	MOV		EBX,	printNumsHeader
 	MOV		EAX,	[EBX]
-	CMP		EAX,			1
+	CMP		EAX,	1
 	JE		_printHeader
 	JMP		_printEachString
 
@@ -168,6 +169,22 @@ _printEachString:
 	MOV		[EBX],	EDX
 
 _printSum:
+	;	mDisplayString isIntro, isArray, isSum, isAvg, printHeaderForArray, sumHeader, sumHeader, stringForOutput
+	mDisplayString [EBP+32], [EBP+36], [EBP+40], [EBP+44], [EBP+48], [EBP+20], [EBP+20], [EBP+8]
+	; MACRO isItIntro:REQ, isItArray:REQ, isItSum:REQ, isItAvg:REQ, printNumsHeader:REQ, headerText:REQ, instructions:REQ, stringToPrint:REQ
+
+	MOV		EDX,	headerText
+	CALL	WriteString
+	MOV		EDX,	0
+
+	MOV		EDX,	stringToPrint
+	CALL	WriteString
+	CALL	CrLf
+
+	; make it so this branch will not be called again
+	MOV		EBX,	isItSum
+	MOV		EDX,	0
+	MOV		[EBX],	EDX
 
 _printAvg:
 
@@ -176,10 +193,14 @@ _endDisplayString:
 	POPAD
 ENDM
 
-; constantDefinitions
+; constants used in validation
 upperValidation =	 2147483647						; this is the maximum number allowed for input
-lowerValidation =	-2147482648						; this is the minimum number allowed for input
+lowerValidation =	-2147482648						; this is the minimum number allowed for input 
 maxInputLength	=	11
+
+stringBuffer	=	20
+
+
 
 .data
 ; variables used in introduction
@@ -199,11 +220,11 @@ sumHeader				BYTE		"The sum of these numbers is: ", 0
 
 avgHeader				BYTE		"The average of these numbers is: ", 0
 
-inputFromUser			BYTE		20	DUP(0)		; set to a size of 12 since -2,147,482,648 is the longest character allowed
+inputFromUser			BYTE		stringBuffer DUP(0)
 
 lengthOfInput			DWORD		?
 
-stringForOutput			BYTE		11	DUP(0)
+stringForOutput			BYTE		stringBuffer DUP(0)
 
 ; variables used in data validation
 errorMessage			BYTE		"ERROR: You did not enter a signed number or your number was too big.", 13, 10
@@ -244,6 +265,7 @@ main PROC
 	PUSH	OFFSET		userPrompt
 	CALL	ReadVal
 
+	PUSH	stringBuffer
 	PUSH	OFFSET		sum
 	PUSH	OFFSET		printHeaderForArray
 	PUSH	OFFSET		isAvg
@@ -742,6 +764,7 @@ insertArrayElement ENDP
 ; Postconditions: None
 ;
 ; Receives:
+; [EBP+56]	= stringBuffer - this is the length of stringForOutput
 ; [EBP+52]	= address of sum
 ; [EBP+48]	= address of printHeaderForArray
 ; [EBP+44]	= address of isAvg
@@ -771,7 +794,6 @@ WriteVal PROC
 	MOV		amountOfDigits,	0
 	MOV		powerOfTen,		1
 	MOV		count,			0
-	MOV		zerosToAdd,		0
 
 _loadNumFromArray:
 	MOV		EDI,	[EBP+8]						; stringForOutput
@@ -799,6 +821,10 @@ _loadSign:
 	POP		EAX
 
 _breakDownEachElement:
+
+	; initialize how many zeros to be added with each element
+	MOV		zerosToAdd,		0
+
 	; EBX, the first time, is 0, otherwise, subtract the 10s component
 	SUB		EAX,	EBX
 
@@ -829,12 +855,16 @@ _breakDownEachElement:
 	JMP		_dontAddZeros
 
 _addZeros: 
+	PUSH	EAX
 	PUSH	ECX
+
 	MOV		ECX,	EDX
 	DEC		ECX
 	MOV		AL,		48
 	REP		STOSB
+	
 	POP		ECX
+	POP		EAX
 
 _dontAddZeros:
 	; find the power of 10 currently being evaluated
@@ -899,6 +929,17 @@ _loadNextNum:
 _printAndLoadNextNum:
 ;	mDisplayString isIntro, isArray, isSum, isAvg, printHeaderForArray, numsHeader, numsHeader, stringForOutput
 	mDisplayString [EBP+32], [EBP+36], [EBP+40], [EBP+44], [EBP+48], [EBP+28], [EBP+28], [EBP+8]
+
+	; preserve ECX
+	PUSH	ECX
+
+	; clean up stringForOutput
+	MOV		EDI,	[EBP+8]
+	MOV		AL,		0
+	MOV		ECX,	[EBP+56]					; length of StringForOutput
+	REP		STOSB
+
+	POP		ECX
 	CMP		ECX,	0
 	JZ		_summation
 	JMP		_loadNumFromArray
@@ -909,6 +950,9 @@ _summation:
 	PUSH	[EBP+12]			; numArray
 	PUSH	[EBP+8]				; stringForInput
 	CALL	findSum
+
+;	mDisplayString isIntro, isArray, isSum, isAvg, printHeaderForArray, sumHeader, sumHeader, stringForOutput
+	mDisplayString [EBP+32], [EBP+36], [EBP+40], [EBP+44], [EBP+48], [EBP+20], [EBP+20], [EBP+8]
 
 	RET 44
 WriteVal ENDP
@@ -993,31 +1037,6 @@ _exitProc:
 
 	RET	12
 findDigitPlace ENDP
-
-;	PUSH	EDI		; current location of EDI
-;	LEA		EDX,	zerosToAdd
-;	PUSH	EDX
-;	CALL	addZerosToString
-
-; ---------------------------------------------------------------------------------
-; Name: addZerosToString
-;
-; Adds a specified amount of zeros to a string
-;	
-; Preconditions: zerosToAdd from calling procedure is defined as any number
-;
-; Postconditions: EDI has advanced by the amount of zeros to add
-;
-; Receives:
-; [EBP+16]	= LENGTHOF numArray
-; [EBP+12]	= address of numArray
-; [EBP+8]	= address of stringForOutput
-;
-; returns: the variable sum is now filled with the sum of the numbers
-; ---------------------------------------------------------------------------------
-;addZerosToString PROC
-	
-;addZerosToString ENDP
 
 ; ---------------------------------------------------------------------------------
 ; Name: findSum
