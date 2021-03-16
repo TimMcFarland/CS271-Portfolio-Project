@@ -760,17 +760,18 @@ insertArrayElement ENDP
 WriteVal PROC
 	; Convert a numeric SDWORD value (input parameter, by value) to a string of ASCII digits
 	; Invoke the mDisplayString macro to print the ASCII representation of the SDWORD value to the output
-	LOCAL	powerOfTen: DWORD, fullNum: DWORD, singleNum:DWORD, amountOfDigits:DWORD
+	LOCAL	powerOfTen: DWORD, fullNum: DWORD, singleNum:DWORD, amountOfDigits:DWORD, fullDigitCount:DWORD, count:DWORD, zerosToAdd:DWORD
 
 	MOV		ESI,	[EBP+12]					; numArray
 	MOV		EBX,	0
 	MOV		ECX,	[EBP+16]					; LENGTHOF numArray
 	INC		ECX
-	INC		ECX
 
 	; initialize local variables
 	MOV		amountOfDigits,	0
 	MOV		powerOfTen,		1
+	MOV		count,			0
+	MOV		zerosToAdd,		0
 
 _loadNumFromArray:
 	MOV		EDI,	[EBP+8]						; stringForOutput
@@ -808,15 +809,36 @@ _breakDownEachElement:
 	; save EAX for later
 	PUSH	EAX
 
+	LEA		EBX,	zerosToAdd
+	PUSH	EBX
 	PUSH	EAX
-	LEA		EDX,	amountOfDigits
+	LEA		EDX,	amountOfDigits					; local variable
 	PUSH	EDX
 	CALL	findDigitPlace
 
-	MOV		EBX,	amountOfDigits
+	MOV		EBX,	amountOfDigits					; local variable
+	
+	; Here we initialize the amount of initial nums. This is ran the first
+	;	time the place is being determined. If the amount of digits is two
+	;	less than the previous place, then this number is a zero and should
+	;	be added to the string.
+	
+	MOV		EDX,	zerosToAdd
+	CMP		EDX,	1
+	JA		_addZeros
+	JMP		_dontAddZeros
 
+_addZeros: 
+	PUSH	ECX
+	MOV		ECX,	EDX
+	DEC		ECX
+	MOV		AL,		48
+	REP		STOSB
+	POP		ECX
+
+_dontAddZeros:
 	; find the power of 10 currently being evaluated
-	LEA		EDX,		powerOfTen
+	LEA		EDX,		powerOfTen					; local variable
 	PUSH	EDX
 	PUSH	EBX
 	CALL	powersOfTen
@@ -827,15 +849,15 @@ _breakDownEachElement:
 	JMP		_nowToDivide
 
 _safeForDividing:
-	INC		powerOfTen
+	INC		powerOfTen								; local variable
 
 _nowToDivide:
 	; Find the base component in EAX
 	MOV		EDX,	0
-	DIV		powerOfTen
+	DIV		powerOfTen								; local variable
 
 	; this is the previous value of EAX -- work with this later
-	POP		fullNum
+	POP		fullNum									; local variable
 
 	; EAX is now the single number
 	PUSH	EAX
@@ -861,8 +883,8 @@ _addToString:
 
 _printToScreen:
 	; don't add a comma to the last item
-;	CMP		ECX,	1
-;	JE		_printAndLoadNextNum
+	CMP		ECX,	1
+	JE		_summation
 	; add a comma and a space to the string
 	MOV		AL,		','
 	STOSB
@@ -873,19 +895,9 @@ _loadNextNum:
 	; after printing, print the next num
 	LOOP	_printAndLoadNextNum
 	JMP		_summation
-; [EBP+52]	= address of sum
-; [EBP+48]	= address of printHeaderForArray
-; [EBP+44]	= address of isAvg
-; [EBP+40]	= address of isSum
-; [EBP+36]	= address of isArray 
-; [EBP+32]	= address of isIntro
-; [EBP+28]	= address of numsHeader
-; [EBP+24]	= address of avgHeader
-; [EBP+20]	= address of sumHeader
-; [EBP+16]	= LENGTHOF numArray
-; [EBP+12]	= address of numArray
-; [EBP+8]	= address of stringForOutput
+
 _printAndLoadNextNum:
+;	mDisplayString isIntro, isArray, isSum, isAvg, printHeaderForArray, numsHeader, numsHeader, stringForOutput
 	mDisplayString [EBP+32], [EBP+36], [EBP+40], [EBP+44], [EBP+48], [EBP+28], [EBP+28], [EBP+8]
 	CMP		ECX,	0
 	JZ		_summation
@@ -911,8 +923,9 @@ WriteVal ENDP
 ; Postconditions: None
 ;
 ; Receives:
-; [EBP+12] = the current number being evaluated
-; [EBP+8]  = amountOfDigits
+; [EBP+16]	= zerosToAdd
+; [EBP+12]	= the current number being evaluated
+; [EBP+8]	= amountOfDigits
 ;
 ; returns: the amount of digits in the current number being evaluated
 ; ---------------------------------------------------------------------------------
@@ -920,6 +933,11 @@ findDigitPlace PROC
 	LOCAL	ten:DWORD
 
 	PUSHAD
+
+	; keep track of the previous amount of digits being evaluated
+	MOV		EBX,	[EBP+8]				
+	MOV		EAX,	[EBX]
+	PUSH	EAX
 
 	; EBX will act as a counter
 	MOV		EBX,	0
@@ -930,30 +948,76 @@ findDigitPlace PROC
 
 	; Compare each item 
 _findCount:
+	; -----------------------------------------------------------
+	; goes through all the 10's places and finds how many places
+	;	the number under evaluateion currently has
+	; -----------------------------------------------------------
 	MOV		EDX,	0
-	CMP		[EBP+12],	EAX
+	CMP		[EBP+12],	EAX					; the current number being evaluated
 	JAE		_increaseCount
 	DIV		ten
 	CMP		EAX,	0
 	JNZ		_findCount
-	JZ		_endOfProc
+	JZ		_assignPlaceAndEvaluateForZeros
 
 _increaseCount:
+	; when a place is found, count is increased
 	INC		EBX
 	MOV		EDX,	0
 	DIV		ten
 	CMP		EAX,	0
-	JZ		_endOfProc
+	JZ		_assignPlaceAndEvaluateForZeros
 	JMP		_findCount
 
-_endOfProc:
-	
+_assignPlaceAndEvaluateForZeros:
+	; assign the amount of digits to the variable amountOfDigits
 	MOV		EDX,	[EBP+8]
 	MOV		[EDX],	EBX
+
+	; check to see if the previous amount of digits being evaluated
+	;	is 2 or more less than the previous number being evaluated and 
+	;	save this to be used later
+	POP		EDX
+	SUB		EDX,	EBX
+	CMP		EDX,	1
+	JS		_exitProc					; handles first evaluation instance
+	JA		_prepToAddZeros
+	JMP		_exitProc
+
+_prepToAddZeros:
+	MOV		EAX,	[EBP+16]
+	MOV		[EAX],	EDX
+
+_exitProc:
 	POPAD
 
-	RET	8
+	RET	12
 findDigitPlace ENDP
+
+;	PUSH	EDI		; current location of EDI
+;	LEA		EDX,	zerosToAdd
+;	PUSH	EDX
+;	CALL	addZerosToString
+
+; ---------------------------------------------------------------------------------
+; Name: addZerosToString
+;
+; Adds a specified amount of zeros to a string
+;	
+; Preconditions: zerosToAdd from calling procedure is defined as any number
+;
+; Postconditions: EDI has advanced by the amount of zeros to add
+;
+; Receives:
+; [EBP+16]	= LENGTHOF numArray
+; [EBP+12]	= address of numArray
+; [EBP+8]	= address of stringForOutput
+;
+; returns: the variable sum is now filled with the sum of the numbers
+; ---------------------------------------------------------------------------------
+;addZerosToString PROC
+	
+;addZerosToString ENDP
 
 ; ---------------------------------------------------------------------------------
 ; Name: findSum
