@@ -141,8 +141,8 @@ _printArray:
 	; prints all the items that are in the array in string form
 	;	if this is the first value, print a header
 	; ---------------------------------------------------------
-	MOV		EBX,			printNumsHeader
-	MOV		EAX,			[EBX]
+	MOV		EBX,	printNumsHeader
+	MOV		EAX,	[EBX]
 	CMP		EAX,			1
 	JE		_printHeader
 	JMP		_printEachString
@@ -203,7 +203,7 @@ inputFromUser			BYTE		20	DUP(0)		; set to a size of 12 since -2,147,482,648 is t
 
 lengthOfInput			DWORD		?
 
-stringForOutput			BYTE		14	DUP(0)
+stringForOutput			BYTE		11	DUP(0)
 
 ; variables used in data validation
 errorMessage			BYTE		"ERROR: You did not enter a signed number or your number was too big.", 13, 10
@@ -212,7 +212,7 @@ errorMessage			BYTE		"ERROR: You did not enter a signed number or your number wa
 isValid					DWORD		1
 
 ; array used to keep track of items
-numArray				SDWORD		9 DUP(?)
+numArray				SDWORD		10 DUP(?)
 
 ; Initializing items that manage mDisplayString macro
 isIntro					DWORD		1
@@ -220,6 +220,9 @@ isArray					DWORD		1
 isSum					DWORD		1
 isAvg					DWORD		1
 printHeaderForArray		DWORD		1
+
+sum						DWORD		?
+average					DWORD		?
 
 .code
 main PROC
@@ -240,6 +243,8 @@ main PROC
 	PUSH	OFFSET		userPrompt
 	CALL	ReadVal
 
+	PUSH	sum
+	PUSH	OFFSET		printHeaderForArray
 	PUSH	OFFSET		isAvg
 	PUSH	OFFSET		isSum
 	PUSH	OFFSET		isArray
@@ -281,8 +286,7 @@ main ENDP
 ; ---------------------------------------------------------------------------------
 ReadVal	PROC
 
-	LOCAL	lowAscii:BYTE, highAscii:BYTE, numsFound:DWORD, hasSign:DWORD, powerOfTen: DWORD, conversionReady: BYTE,
-			count:DWORD, singleNum:BYTE
+	LOCAL	lowAscii:BYTE, highAscii:BYTE, numsFound:DWORD, hasSign:DWORD, powerOfTen: DWORD, conversionReady: BYTE, count:DWORD, singleNum:BYTE
 
 	; these are constants
 	MOV		lowAscii,	48
@@ -637,6 +641,12 @@ evaluateString ENDP
 ; returns: powerOfTen (local variable to ReadVal) currently has a value
 ; ---------------------------------------------------------------------------------
 powersOfTen PROC
+	; ------------------------------------------------
+	; I am unsure of exactly how to fix this, but in this procedure,
+	;	I am taking anything that has a 0, such as 807, and it is
+	;	eliminating the 0 and coming out as 87. Not exactly
+	;	sure how to fix :(
+	; ------------------------------------------------
 	PUSH	EBP
 	MOV		EBP,	ESP
 
@@ -731,6 +741,7 @@ insertArrayElement ENDP
 ; Postconditions: None
 ;
 ; Receives:
+; [EBP+52]	= sum
 ; [EBP+48]	= address of printHeaderForArray
 ; [EBP+44]	= address of isAvg
 ; [EBP+40]	= address of isSum
@@ -860,15 +871,31 @@ _printToScreen:
 _loadNextNum:
 	; after printing, print the next num
 	LOOP	_printAndLoadNextNum
-	JMP		_finish
-
+	JMP		_summation
+; [EBP+42]	= SUM
+; [EBP+48]	= address of printHeaderForArray
+; [EBP+44]	= address of isAvg
+; [EBP+40]	= address of isSum
+; [EBP+36]	= address of isArray 
+; [EBP+32]	= address of isIntro
+; [EBP+28]	= address of numsHeader
+; [EBP+24]	= address of avgHeader
+; [EBP+20]	= address of sumHeader
+; [EBP+16]	= LENGTHOF numArray
+; [EBP+12]	= address of numArray
+; [EBP+8]	= address of stringForOutput
 _printAndLoadNextNum:
-	mDisplayString OFFSET isIntro, OFFSET isArray, OFFSET isSum, OFFSET isAvg, OFFSET printHeaderForArray, OFFSET numsHeader, OFFSET stringForOutput, OFFSET stringForOutput
+	mDisplayString [EBP+32], [EBP+36], [EBP+40], [EBP+44], [EBP+48], [EBP+28], [EBP+28], [EBP+8]
 	CMP		ECX,	0
-	JZ		_finish
+	JZ		_summation
 	JMP		_loadNumFromArray
 
-_finish:
+_summation:
+	PUSH	[EBP+52]			; sum
+	PUSH	[EBP+16]			; LengthOf numArray
+	PUSH	[EBP+12]			; numArray
+	PUSH	[EBP+8]				; stringForInput
+	CALL	findSum
 	RET 44
 WriteVal ENDP
 	
@@ -925,7 +952,45 @@ _endOfProc:
 
 	RET	8
 findDigitPlace ENDP
+; ---------------------------------------------------------------------------------
+; Name: findSum
+;
+; Adds all numbers in the array together
+;	
+; Preconditions: numArray is filled with numbers that fit within a 32-bit register
+;
+; Postconditions: None
+;
+; Receives:
+; [EBP+16]	= LENGTHOF numArray
+; [EBP+12]	= address of numArray
+; [EBP+8]	= address of stringForOutput
+;
+; returns: stringForInput has the sum in string format placed within it
+; ---------------------------------------------------------------------------------
 
+findSum	PROC
+	LOCAL	sum:DWORD
+	PUSHAD
+
+	MOV		EBX,	0
+	MOV		ECX,	[EBP+16]
+	MOV		ESI,	[EBP+12]
+
+_whereSumHappens:
+	LODSD
+
+	ADD		EBX,	EAX
+	LOOP	_whereSumHappens
+
+	MOV		EDX,	[EBP+8]
+
+	POPAD
+
+
+
+	RET	12
+findSum	ENDP
 END main
 
 
