@@ -222,6 +222,7 @@ isAvg					DWORD		1
 printHeaderForArray		DWORD		1
 
 sum						DWORD		?
+
 average					DWORD		?
 
 .code
@@ -243,7 +244,7 @@ main PROC
 	PUSH	OFFSET		userPrompt
 	CALL	ReadVal
 
-	PUSH	sum
+	PUSH	OFFSET		sum
 	PUSH	OFFSET		printHeaderForArray
 	PUSH	OFFSET		isAvg
 	PUSH	OFFSET		isSum
@@ -741,7 +742,7 @@ insertArrayElement ENDP
 ; Postconditions: None
 ;
 ; Receives:
-; [EBP+52]	= sum
+; [EBP+52]	= address of sum
 ; [EBP+48]	= address of printHeaderForArray
 ; [EBP+44]	= address of isAvg
 ; [EBP+40]	= address of isSum
@@ -872,7 +873,7 @@ _loadNextNum:
 	; after printing, print the next num
 	LOOP	_printAndLoadNextNum
 	JMP		_summation
-; [EBP+42]	= SUM
+; [EBP+52]	= address of sum
 ; [EBP+48]	= address of printHeaderForArray
 ; [EBP+44]	= address of isAvg
 ; [EBP+40]	= address of isSum
@@ -896,6 +897,7 @@ _summation:
 	PUSH	[EBP+12]			; numArray
 	PUSH	[EBP+8]				; stringForInput
 	CALL	findSum
+
 	RET 44
 WriteVal ENDP
 	
@@ -952,6 +954,7 @@ _endOfProc:
 
 	RET	8
 findDigitPlace ENDP
+
 ; ---------------------------------------------------------------------------------
 ; Name: findSum
 ;
@@ -962,15 +965,18 @@ findDigitPlace ENDP
 ; Postconditions: None
 ;
 ; Receives:
+; [EBP+20]	= address of sum
 ; [EBP+16]	= LENGTHOF numArray
 ; [EBP+12]	= address of numArray
 ; [EBP+8]	= address of stringForOutput
 ;
-; returns: stringForInput has the sum in string format placed within it
+; returns: the variable sum is now filled with the sum of the numbers
 ; ---------------------------------------------------------------------------------
 
 findSum	PROC
-	LOCAL	sum:DWORD
+	PUSH	EBP
+	MOV		ESP,	EBP
+
 	PUSHAD
 
 	MOV		EBX,	0
@@ -983,13 +989,14 @@ _whereSumHappens:
 	ADD		EBX,	EAX
 	LOOP	_whereSumHappens
 
-	MOV		EDX,	[EBP+8]
+	MOV		EDX,	[EBP+20]
+	MOV		[EDX],	EBX
 
 	POPAD
 
+	POP EBP
 
-
-	RET	12
+	RET	16
 findSum	ENDP
 END main
 
