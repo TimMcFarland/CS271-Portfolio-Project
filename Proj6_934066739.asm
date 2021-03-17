@@ -96,10 +96,10 @@ mDisplayString	MACRO isItIntro:REQ, isItArray:REQ, isItSum:REQ, isItAvg:REQ, pri
 	LOCAL	_endDisplayString
 	LOCAL	_introduction
 	LOCAL	_printArray
+	LOCAL	_printHeader
+	LOCAL	_printEachString
 	LOCAL	_printSum
 	LOCAL	_printAvg
-	LOCAL	_printEachString
-	LOCAL	_printHeader
 
 	; preserve all registers
 	PUSHAD
@@ -157,6 +157,7 @@ _printHeader:
 	MOV		EBX,	printNumsHeader
 	MOV		EDX,	0
 	MOV		[EBX],	EDX
+	MOV		EAX,	0
 
 _printEachString:
 	MOV		EDX,	stringToPrint
@@ -167,12 +168,14 @@ _printEachString:
 	MOV		EBX,	printNumsHeader
 	MOV		EDX,	0
 	MOV		[EBX],	EDX
+	JMP		_endDisplayString
 
 _printSum:
 	;	mDisplayString isIntro, isArray, isSum, isAvg, printHeaderForArray, sumHeader, sumHeader, stringForOutput
-	mDisplayString [EBP+32], [EBP+36], [EBP+40], [EBP+44], [EBP+48], [EBP+20], [EBP+20], [EBP+8]
 	; MACRO isItIntro:REQ, isItArray:REQ, isItSum:REQ, isItAvg:REQ, printNumsHeader:REQ, headerText:REQ, instructions:REQ, stringToPrint:REQ
 
+	CALL	CrLf
+	CALL	CrLf
 	MOV		EDX,	headerText
 	CALL	WriteString
 	MOV		EDX,	0
@@ -197,7 +200,6 @@ ENDM
 upperValidation =	 2147483647						; this is the maximum number allowed for input
 lowerValidation =	-2147482648						; this is the minimum number allowed for input 
 maxInputLength	=	11
-
 stringBuffer	=	20
 
 
@@ -265,6 +267,7 @@ main PROC
 	PUSH	OFFSET		userPrompt
 	CALL	ReadVal
 
+
 	PUSH	stringBuffer
 	PUSH	OFFSET		sum
 	PUSH	OFFSET		printHeaderForArray
@@ -279,6 +282,8 @@ main PROC
 	PUSH	OFFSET		numArray
 	PUSH	OFFSET		stringForOutput
 	CALL	WriteVal
+
+	MOV		EAX, 0
 
 	Invoke ExitProcess, 0	; exit to operating system
 main ENDP
@@ -539,7 +544,7 @@ _addToArray:
 	JMP		_userInput
 
 	_finish:
-	RET		12
+	RET		40
 ReadVal ENDP
 
 ; ---------------------------------------------------------------------------------
@@ -912,10 +917,15 @@ _addToString:
 	JMP		_breakDownEachElement
 
 _printToScreen:
-	; don't add a comma to the last item
-	CMP		ECX,	1
-	JE		_summation
-	; add a comma and a space to the string
+
+	; checks to see if isSum if 0, if so, that means that it
+	;	has been evaluated already, so check to see if sum or
+	;	average needs to be printed next
+	MOV		EBX,	[EBP+40]
+	MOV		EAX,	[EBX]
+	CMP		EAX,	0
+	JZ		_checkForSumOrAverage
+
 	MOV		AL,		','
 	STOSB
 	MOV		AL,		' '
@@ -927,6 +937,7 @@ _loadNextNum:
 	JMP		_summation
 
 _printAndLoadNextNum:
+
 ;	mDisplayString isIntro, isArray, isSum, isAvg, printHeaderForArray, numsHeader, numsHeader, stringForOutput
 	mDisplayString [EBP+32], [EBP+36], [EBP+40], [EBP+44], [EBP+48], [EBP+28], [EBP+28], [EBP+8]
 
@@ -945,16 +956,66 @@ _printAndLoadNextNum:
 	JMP		_loadNumFromArray
 
 _summation:
-	PUSH	[EBP+52]			; sum
-	PUSH	[EBP+16]			; LengthOf numArray
-	PUSH	[EBP+12]			; numArray
-	PUSH	[EBP+8]				; stringForInput
+	; this is no longer an array
+	MOV		EAX,	[EBP+36]
+	MOV		EDX,	0
+	MOV		[EAX],	EDX
+
+	PUSH	[EBP+52]							; sum
+	PUSH	[EBP+16]							; LengthOf numArray
+	PUSH	[EBP+12]							; numArray
+	PUSH	[EBP+8]								; stringForInput
 	CALL	findSum
+
+	; set isSum to 0
+	MOV		EAX,	[EBP+40]
+	MOV		EDX,	0
+	MOV		[EAX],	EDX
+
+	; prep the sum to be printed to the screen
+	MOV		EBX,	[EBP+52]					; address of sum
+	MOV		EAX,	[EBX]					
+	MOV		EDI,	[EBP+8]						; stringForOutput
+	MOV		EBX,	0
+
+	; check to see if the number is a negative, if so adjust
+	CMP		EAX,	1
+	JS		_loadSign
+	JMP		_breakDownEachElement
+
+; [EBP+56]	= stringBuffer - this is the length of stringForOutput
+; [EBP+52]	= address of sum
+; [EBP+48]	= address of printHeaderForArray
+; [EBP+44]	= address of isAvg
+; [EBP+40]	= address of isSum
+; [EBP+36]	= address of isArray 
+; [EBP+32]	= address of isIntro
+; [EBP+28]	= address of numsHeader
+; [EBP+24]	= address of avgHeader
+; [EBP+20]	= address of sumHeader
+; [EBP+16]	= LENGTHOF numArray
+; [EBP+12]	= address of numArray
+; [EBP+8]	= address of stringForOutput
+
+_checkForSumOrAverage:
+	
+	; check to see if isAvg is 0. If so, print isAvg
+	MOV		EDX,	[EBP+44]	
+	MOV		EAX,	[EDX]
+	CMP		EAX,	1
+	JE		_prepAverage
+
+	; set isSum to 1
+	MOV		EAX,	[EBP+40]
+	MOV		EDX,	1
+	MOV		[EAX],	EDX
 
 ;	mDisplayString isIntro, isArray, isSum, isAvg, printHeaderForArray, sumHeader, sumHeader, stringForOutput
 	mDisplayString [EBP+32], [EBP+36], [EBP+40], [EBP+44], [EBP+48], [EBP+20], [EBP+20], [EBP+8]
 
-	RET 44
+_prepAverage:
+
+	RET 52
 WriteVal ENDP
 	
 ; ---------------------------------------------------------------------------------
@@ -1055,13 +1116,12 @@ findDigitPlace ENDP
 ;
 ; returns: the variable sum is now filled with the sum of the numbers
 ; ---------------------------------------------------------------------------------
-
 findSum	PROC
-	PUSH	EBP
-	MOV		ESP,	EBP
+	LOCAL	num:DWORD
 
 	PUSHAD
 
+	; set counter and address of numArray
 	MOV		EBX,	0
 	MOV		ECX,	[EBP+16]
 	MOV		ESI,	[EBP+12]
@@ -1077,10 +1137,9 @@ _whereSumHappens:
 
 	POPAD
 
-	POP EBP
-
 	RET	16
 findSum	ENDP
+
 END main
 
 
