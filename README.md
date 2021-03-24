@@ -1,4 +1,4 @@
-# CS271-Project-6
+# Low Level Programming with String Literals
 
 - Language:     MASM
 - Dependencies: Irvine Library (http://asmirvine.com/gettingStartedVS2017/index.htm)
