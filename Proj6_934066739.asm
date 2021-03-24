@@ -1,14 +1,17 @@
 TITLE Proj6_934066739     (Proj6_934066739.asm)
 
 ; Author: Tim McFarland
-; Last Modified: 3/15/2021
+; Last Modified: 3/16/2021
 ; OSU email address: mcfarlti@oregonstate.edu
 ; Course number/section:   CS271 Section 400
-; Project Number: 6              Due Date: 3/18/2021
+; Project Number: 6              Due Date: 3/16/2021 (using 2 grace days; see Canvas comment from 3/6)
+
 ; Description: Receives 10 different integers from a user and validates whether or not those integers
-;	fit within a 32 bit register. If they do, then those numbers are printed to the screen, and the 
-;	sum of those numbers as well as the average of those numbers is also shown. This is all done
-;	using string primitives.
+;	fit within a 32 bit register and if they are integers. If they are integers that fit,
+;	then those numbers are printed to the screen, and the sum of those numbers as well as 
+;	the average of those numbers is also shown. This is all done using string primitives.
+
+; known issues - Trailing zeroes don't always show; however, they are tracked properly in numArray
 
 INCLUDE Irvine32.inc
 
@@ -73,25 +76,28 @@ ENDM
 ; Name: mDisplayString
 ;
 ; Displays the following items: instructions to user, valid nums that user input,
-;	and the sum and average of the input.
+;	and the sum and average of the input as well as a farewell message
 ;
 ; Preconditions: introduction is defined in the first use case, numArray is defined
 ;	in the second use case, sum is defined in the third use case, and average is 
 ;	defined in the fourth use case
 ;
 ; Receives:
-; prompt = userPrompt, which provides direction to the user
-; userInput = inputFromUser
-; characterCount = SIZEOF inputFromUser
-; validCheck = isValid variable
-; errMessage = memory location of the string errorMessage
-; isItIntro = isIntro, which is defined as 1 initially, 0 anytime after
+; isItIntro		  = isIntro Boolean check
+; isItArray		  = isArray Boolean check
+; IsItSum		  = isSum Boolean check
+; isItAvg		  = isAvg Boolean check
+; printNumsHeader = printHeaderForArray Boolean check
+; headerText	  = header for array, sum and average
+; instructions	  = programInstructions - only called in introduction
+; stringToPrint	  = stringForOutput
+; fareWell		  = a farewell message to the user
 ;
-; returns: inputLength = lengthOfInput is updated
-;		   userInput = userInput is updated
-;		   isIntro is changed to 0 if isIntro is initially 1
+; returns: updates isItIntro during first pass to 0 (in main)
+;	updates printNumsHeader to 0 after array first value of array is printed
+;	updates isItSum to 0 once sum is printed
 ; ---------------------------------------------------------------------------------
-mDisplayString	MACRO isItIntro:REQ, isItArray:REQ, isItSum:REQ, isItAvg:REQ, printNumsHeader:REQ, headerText:REQ, instructions:REQ, stringToPrint:REQ
+mDisplayString	MACRO isItIntro:REQ, isItArray:REQ, isItSum:REQ, isItAvg:REQ, printNumsHeader:REQ, headerText:REQ, instructions:REQ, stringToPrint:REQ, fareWell:REQ
 
 	LOCAL	_endDisplayString
 	LOCAL	_introduction
@@ -110,22 +116,27 @@ mDisplayString	MACRO isItIntro:REQ, isItArray:REQ, isItSum:REQ, isItAvg:REQ, pri
 	CMP		EAX,			1
 	JE		_introduction
 
+	; if it is an array, display header and print array
 	MOV		EBX,			isItArray
 	MOV		EAX,			[EBX]
 	CMP		EAX,			1
 	JE		_printArray
 
+	; if it is the sum, display header and print sum
 	MOV		EBX,			isItSum
 	MOV		EAX,			[EBX]
 	CMP		EAX,			1
 	JE		_printSum
 
+	; if it is the average, display header and print avg
 	MOV		EBX,			isItAvg
 	MOV		EAX,			[EBX]
 	CMP		EAX,			1
 	JE		_printAvg
 
+
 _introduction:
+	; this is to be printed if it is the first time that the array is printed
 	MOV		EDX,	headerText
 	CALL	WriteString
 	CALL	CrLf
@@ -150,6 +161,7 @@ _printArray:
 
 _printHeader:
 	; prints the header
+	CALL	CrLf
 	MOV		EDX,	headerText
 	CALL	WriteString
 
@@ -171,15 +183,14 @@ _printEachString:
 	JMP		_endDisplayString
 
 _printSum:
-	;	mDisplayString isIntro, isArray, isSum, isAvg, printHeaderForArray, sumHeader, sumHeader, stringForOutput
-	; MACRO isItIntro:REQ, isItArray:REQ, isItSum:REQ, isItAvg:REQ, printNumsHeader:REQ, headerText:REQ, instructions:REQ, stringToPrint:REQ
-
+	; print header
 	CALL	CrLf
 	CALL	CrLf
 	MOV		EDX,	headerText
 	CALL	WriteString
 	MOV		EDX,	0
 
+	; print value
 	MOV		EDX,	stringToPrint
 	CALL	WriteString
 	CALL	CrLf
@@ -188,9 +199,23 @@ _printSum:
 	MOV		EBX,	isItSum
 	MOV		EDX,	0
 	MOV		[EBX],	EDX
+	JMP		_endDisplayString
 
 _printAvg:
+	; print header
+	CALL	CrLf
+	MOV		EDX,	headerText
+	CALL	WriteString
+	MOV		EDX, 0
 
+	; print value
+	MOV		EDX,	stringToPrint
+	CALL	WriteString
+	CALL	CrLf
+	
+	; display farewell message
+	MOV		EDX,	fareWell
+	CALL	WriteString
 
 _endDisplayString:
 	POPAD
@@ -205,7 +230,6 @@ stringBuffer	=	20
 
 
 .data
-; variables used in introduction
 programHeader			BYTE		"PROGRAMMING ASSIGNMENT 6: Designing low-level I/O procedures", 13, 10
 						BYTE		"Written by: Tim McFarland",13, 10, 0
 
@@ -228,13 +252,11 @@ lengthOfInput			DWORD		?
 
 stringForOutput			BYTE		stringBuffer DUP(0)
 
-; variables used in data validation
 errorMessage			BYTE		"ERROR: You did not enter a signed number or your number was too big.", 13, 10
 						BYTE		"Please try again: ", 0
 
 isValid					DWORD		1
 
-; array used to keep track of items
 numArray				SDWORD		10 DUP(?)
 
 ; Initializing items that manage mDisplayString macro
@@ -248,12 +270,13 @@ sum						DWORD		?
 
 average					DWORD		?
 
+farewell				BYTE		13, 10, "Thanks for a great and challenging term! Have a great day!", 13, 10, 0
+
 .code
 main PROC
 
 	; Introduction is shown
-	mDisplayString OFFSET isIntro, OFFSET isArray, OFFSET isSum, OFFSET isAvg, OFFSET printHeaderForArray, OFFSET programHeader, OFFSET programInstructions, OFFSET stringForOutput
-
+	mDisplayString OFFSET isIntro, OFFSET isArray, OFFSET isSum, OFFSET isAvg, OFFSET printHeaderForArray, OFFSET programHeader, OFFSET programInstructions, OFFSET stringForOutput, OFFSET farewell
 
 	PUSH	lowerValidation
 	PUSH	upperValidation
@@ -267,7 +290,8 @@ main PROC
 	PUSH	OFFSET		userPrompt
 	CALL	ReadVal
 
-
+	PUSH	OFFSET		farewell
+	PUSH	OFFSET		average
 	PUSH	stringBuffer
 	PUSH	OFFSET		sum
 	PUSH	OFFSET		printHeaderForArray
@@ -283,8 +307,7 @@ main PROC
 	PUSH	OFFSET		stringForOutput
 	CALL	WriteVal
 
-	MOV		EAX, 0
-
+	MOV		EAX,	1
 	Invoke ExitProcess, 0	; exit to operating system
 main ENDP
 
@@ -316,14 +339,10 @@ ReadVal	PROC
 
 	LOCAL	lowAscii:BYTE, highAscii:BYTE, numsFound:DWORD, hasSign:DWORD, powerOfTen: DWORD, conversionReady: BYTE, count:DWORD, singleNum:BYTE
 
-	; these are constants
+	; defining constants
 	MOV		lowAscii,	48
 	MOV		highAscii,	57
 	MOV		count,		0
-	; MUST invoke the mGetString Macro to get user input in the form of a string of digits
-	; Convert (using string primitives) the string of ASCII digits to its numeric value representation (SDWORD)
-		;	Validate the user's input is a valid number (no letters, symbols, etc).
-	; Store this value in a memory variable
 
 _userInput:
 	; resets these trackers at each loop
@@ -379,8 +398,6 @@ _containsSign:
 	MOV		hasSign,	1
 	DEC		ECX
 	
-	; iterates through ESI and compares with AL at each step
-
 _stringEvaluation:
 	PUSH	ESI
 	PUSH	[EBP+32]							;lengthOfInput
@@ -393,10 +410,6 @@ _stringEvaluation:
 
 
 _evaluateLength:
-	; here, we are going to compare the count, which has accrued each time that number was found, and
-	;	we are going to compare that with 1 less than the maximum allowed input because that is the number
-	;	that count should be in this respect
-
 	; comparing the maximum length of the string allowed with the numbers found
 	MOV		EAX,		[EBP+32]				; lengthOfInput
 	MOV		EBX,		[EAX]
@@ -420,12 +433,12 @@ _invalidInput:
 	JMP		_userInput
 
 _stringToInteger:
-	; Here, each string element is 
 	; find userInput location
-	MOV		ESI,		[EBP+12]					; inputFromUser
+	MOV		ESI,		[EBP+12]				; inputFromUser
 
+	; check to see if number has a sign, if so, convert to work with it
+	;	otherwise, prepare to convert number
 	CMP		hasSign,	1
-
 	JE		_signExists
 	JMP		_prepConversion
 
@@ -433,13 +446,13 @@ _signExists:
 	; if there is a sign, point to the next item in the string
 	ADD		ESI,		1
 	MOV		EDX,		0
-	MOV		EBX,		[EBP+32]					; lengthOfInput
+	MOV		EBX,		[EBP+32]				; lengthOfInput
 	MOV		ECX,		[EBX]
 	DEC		ECX
 	JMP		_moveElement
 
 _prepConversion:
-	MOV		EBX,		[EBP+32]					; lengthOfInput
+	MOV		EBX,		[EBP+32]				; lengthOfInput
 	MOV		ECX,		[EBX]
 
 _moveElement:
@@ -451,11 +464,7 @@ _moveElement:
 
 _stringConversion:
 	
-	; Algorithm:
-	; max num is 2147483647 and -2147483648
-	; Note that EDX is already 0
-	; Note that EAX already has the latest number in it
-
+	; find the power of 10 used for the num component
 	LEA		EDI,		powerOfTen
 	PUSH	EDI
 	PUSH	ECX
@@ -467,23 +476,22 @@ _stringConversion:
 	MOV		AH,			0
 
 	; covert that string into its integer version
-	SUB		AL,			lowAscii					; local variable
+	SUB		AL,			lowAscii				; local variable
 	MOV		singleNum,	AL							
 
 	MOVSX	EAX,		singleNum			
 
 	; now that EAX has the number, we are going to multiply this by the power of 10 that was updated from the CALL
 	MOV		EBX,		powerOfTen
-	MUL		EBX										; this looks like singleNum * 10^lengthOfInput
+
+	; this looks like singleNum * 10^lengthOfInput
+	MUL		EBX									
 	
 	; Now that we have this number in it's power of 10 component, move it to the stack to work with later
 	PUSH	EAX
 
 	; After adding, if EDX > 0 that means there was overflow
 	MOV		EDX,		0
-
-	; Repeat this process again until we have all the numbers on the stack
-	; LOOP _stringConversion
 
 	MOV		conversionReady,	1
 	LOOP	_stringConversion
@@ -608,14 +616,14 @@ _incrementAscii:
 	INC		AL
 
 	; prepare counter for string evaluation
-	MOV		EBX,	[EBP+20]				; lengthOfInput
+	MOV		EBX,	[EBP+20]					; lengthOfInput
 	MOV		ECX,	[EBX]
 
 	; set pointer back to inputFromUser reference
-	MOV		ESI,	[EBP+24]				; inputFromUser
+	MOV		ESI,	[EBP+24]					; inputFromUser
 	MOV		BL,		[ESI]
 
-	MOV		EBX,	[EBP+12]				; hasSign
+	MOV		EBX,	[EBP+12]					; hasSign
 	MOV		EDI,	[EBX]
 	CMP		EDI,	1
 	JE		_moveUpOneByte	
@@ -666,15 +674,10 @@ evaluateString ENDP
 ; [EBP+12] = stack location of powerOfTen (local variable of calling procedure)
 ; [EBP+8] = ECX, which is the current 10s place being evaluated
 ;
-; returns: powerOfTen (local variable to ReadVal) currently has a value
+; returns: powerOfTen (local variable to ReadVal) receives a value
 ; ---------------------------------------------------------------------------------
 powersOfTen PROC
-	; ------------------------------------------------
-	; I am unsure of exactly how to fix this, but in this procedure,
-	;	I am taking anything that has a 0, such as 807, and it is
-	;	eliminating the 0 and coming out as 87. Not exactly
-	;	sure how to fix :(
-	; ------------------------------------------------
+
 	PUSH	EBP
 	MOV		EBP,	ESP
 
@@ -766,9 +769,11 @@ insertArrayElement ENDP
 ;	
 ; Preconditions: numArray is filled with numbers that fit within a 32-bit register
 ;
-; Postconditions: None
+; Postconditions: Prints all values to screen for the user, 
 ;
 ; Receives:
+; [EBP+64]	= address of farewell
+; [EBP+60]	= address of average
 ; [EBP+56]	= stringBuffer - this is the length of stringForOutput
 ; [EBP+52]	= address of sum
 ; [EBP+48]	= address of printHeaderForArray
@@ -783,12 +788,10 @@ insertArrayElement ENDP
 ; [EBP+12]	= address of numArray
 ; [EBP+8]	= address of stringForOutput
 ;
-; returns: None
+; returns: all values printed to screen using mDisplayString macro
 ; ---------------------------------------------------------------------------------
 WriteVal PROC
-	; Convert a numeric SDWORD value (input parameter, by value) to a string of ASCII digits
-	; Invoke the mDisplayString macro to print the ASCII representation of the SDWORD value to the output
-	LOCAL	powerOfTen: DWORD, fullNum: DWORD, singleNum:DWORD, amountOfDigits:DWORD, fullDigitCount:DWORD, count:DWORD, zerosToAdd:DWORD
+	LOCAL	powerOfTen: DWORD, fullNum: DWORD, singleNum:DWORD, amountOfDigits:DWORD, fullDigitCount:DWORD, count:DWORD, zerosToAdd:DWORD, digitTracker:DWORD
 
 	MOV		ESI,	[EBP+12]					; numArray
 	MOV		EBX,	0
@@ -801,11 +804,14 @@ WriteVal PROC
 	MOV		count,			0
 
 _loadNumFromArray:
+	
 	MOV		EDI,	[EBP+8]						; stringForOutput
 
 	LODSD
 
 	MOV		EBX,	0
+
+	MOV		digitTracker,	0					; accounts for trailing zeros
 
 	; check to see if the sign flag is raised
 	CMP		EAX,	1
@@ -840,7 +846,7 @@ _breakDownEachElement:
 	; save EAX for later
 	PUSH	EAX
 
-	LEA		EBX,	zerosToAdd
+	LEA		EBX,	zerosToAdd						; local variable
 	PUSH	EBX
 	PUSH	EAX
 	LEA		EDX,	amountOfDigits					; local variable
@@ -849,12 +855,14 @@ _breakDownEachElement:
 
 	MOV		EBX,	amountOfDigits					; local variable
 	
-	; Here we initialize the amount of initial nums. This is ran the first
-	;	time the place is being determined. If the amount of digits is two
-	;	less than the previous place, then this number is a zero and should
-	;	be added to the string.
+; ------------------------------------------------------------------------
+; Here we initialize the amount of initial nums. This is ran the first
+;	time the place is being determined. If the amount of digits is two
+;	less than the previous place, then this number is a zero and should
+;	be added to the string.
+; ------------------------------------------------------------------------
 	
-	MOV		EDX,	zerosToAdd
+	MOV		EDX,	zerosToAdd						; local variable
 	CMP		EDX,	1
 	JA		_addZeros
 	JMP		_dontAddZeros
@@ -863,8 +871,18 @@ _addZeros:
 	PUSH	EAX
 	PUSH	ECX
 
+	; ECX will contain the variable zerosToAdd
 	MOV		ECX,	EDX
+	CMP		ECX,	1
 	DEC		ECX
+
+	; keep track of the amount of zeros added
+	MOV		EAX,			digitTracker
+	ADD		EAX,			ECX
+	MOV		digitTracker,	EAX
+	MOV		EAX,			0
+
+	; AL is loaded with the ACII '0' and is added
 	MOV		AL,		48
 	REP		STOSB
 	
@@ -905,6 +923,9 @@ _addToString:
 
 	STOSB
 
+	; track each digit stored in memory
+	INC		digitTracker
+
 	; take that individual number and find it's power of ten
 	POP		EAX
 	MOV		EBX,	powerOfTen
@@ -917,11 +938,30 @@ _addToString:
 	JMP		_breakDownEachElement
 
 _printToScreen:
+	
+	; check to see if the digitTracker and amountOfDigits is the same
+	;	if it is not the same, add trailing zeroes
+	MOV		EAX,	amountOfDigits
+	MOV		EBX,	digitTracker
+	CMP		EAX,	EBX
+	JA		_addTrailingZeroes
+	JMP		_checkIfArrayIsDone
 
-	; checks to see if isSum if 0, if so, that means that it
+_addTrailingZeroes:
+	PUSH	ECX
+	
+	SUB		EAX,	EBX
+	MOV		ECX,	EAX
+	MOV		AL,		'0'
+	REP		STOSB
+
+	POP		ECX
+
+_checkIfArrayIsDone:
+	; checks to see if isArray if 0, if so, that means that it
 	;	has been evaluated already, so check to see if sum or
 	;	average needs to be printed next
-	MOV		EBX,	[EBP+40]
+ 	MOV		EBX,	[EBP+36]
 	MOV		EAX,	[EBX]
 	CMP		EAX,	0
 	JZ		_checkForSumOrAverage
@@ -938,17 +978,16 @@ _loadNextNum:
 
 _printAndLoadNextNum:
 
-;	mDisplayString isIntro, isArray, isSum, isAvg, printHeaderForArray, numsHeader, numsHeader, stringForOutput
-	mDisplayString [EBP+32], [EBP+36], [EBP+40], [EBP+44], [EBP+48], [EBP+28], [EBP+28], [EBP+8]
+;	mDisplayString isIntro, isArray, isSum, isAvg, printHeaderForArray, numsHeader, numsHeader, stringForOutput, farewell
+	mDisplayString [EBP+32], [EBP+36], [EBP+40], [EBP+44], [EBP+48], [EBP+28], [EBP+28], [EBP+8], [EBP+64]
 
 	; preserve ECX
 	PUSH	ECX
 
 	; clean up stringForOutput
-	MOV		EDI,	[EBP+8]
-	MOV		AL,		0
-	MOV		ECX,	[EBP+56]					; length of StringForOutput
-	REP		STOSB
+	PUSH	[EBP+56]							; stringBuffer
+	PUSH	[EBP+8]								; stringForOutput
+	CALL	cleanString
 
 	POP		ECX
 	CMP		ECX,	0
@@ -956,21 +995,25 @@ _printAndLoadNextNum:
 	JMP		_loadNumFromArray
 
 _summation:
-	; this is no longer an array
+	
+	; reset the digit tracker in preparation for printing sum
+	MOV		digitTracker,	0
+
+	; this is no longer an array, so set isArray to 0
 	MOV		EAX,	[EBP+36]
 	MOV		EDX,	0
 	MOV		[EAX],	EDX
+
+	; clean up stringForOutput
+	PUSH	[EBP+56]							; stringBuffer
+	PUSH	[EBP+8]								; stringForOutput
+	CALL	cleanString
 
 	PUSH	[EBP+52]							; sum
 	PUSH	[EBP+16]							; LengthOf numArray
 	PUSH	[EBP+12]							; numArray
 	PUSH	[EBP+8]								; stringForInput
 	CALL	findSum
-
-	; set isSum to 0
-	MOV		EAX,	[EBP+40]
-	MOV		EDX,	0
-	MOV		[EAX],	EDX
 
 	; prep the sum to be printed to the screen
 	MOV		EBX,	[EBP+52]					; address of sum
@@ -983,39 +1026,52 @@ _summation:
 	JS		_loadSign
 	JMP		_breakDownEachElement
 
-; [EBP+56]	= stringBuffer - this is the length of stringForOutput
-; [EBP+52]	= address of sum
-; [EBP+48]	= address of printHeaderForArray
-; [EBP+44]	= address of isAvg
-; [EBP+40]	= address of isSum
-; [EBP+36]	= address of isArray 
-; [EBP+32]	= address of isIntro
-; [EBP+28]	= address of numsHeader
-; [EBP+24]	= address of avgHeader
-; [EBP+20]	= address of sumHeader
-; [EBP+16]	= LENGTHOF numArray
-; [EBP+12]	= address of numArray
-; [EBP+8]	= address of stringForOutput
+_average:
+	; clean up stringForOutput
+	PUSH	[EBP+56]							; stringBuffer
+	PUSH	[EBP+8]								; stringForOutput
+	CALL	cleanString
+
+	PUSH	[EBP+16]							; LENGTHOF numArray
+	PUSH	[EBP+60]							; address of average
+	PUSH	[EBP+52]							; address of sum
+	CALL	findAverage
+
+	; prep the average to be printed to the screen
+	MOV		EBX,	[EBP+60]					; address of average
+	MOV		EAX,	[EBX]					
+	MOV		EDI,	[EBP+8]						; stringForOutput
+	MOV		EBX,	0
+
+	; check to see if the number is a negative, if so adjust
+	CMP		EAX,	1
+	JS		_loadSign
+	JMP		_breakDownEachElement
 
 _checkForSumOrAverage:
-	
-	; check to see if isAvg is 0. If so, print isAvg
-	MOV		EDX,	[EBP+44]	
+	; check to see if isSum is 1. If so, print the sum
+	;	otherwise, prepare to print the average
+	MOV		EDX,	[EBP+40]	
 	MOV		EAX,	[EDX]
 	CMP		EAX,	1
-	JE		_prepAverage
+	JE		_printSum
+	JMP		_printAverage
 
-	; set isSum to 1
-	MOV		EAX,	[EBP+40]
-	MOV		EDX,	1
-	MOV		[EAX],	EDX
+_printSum:
+;	mDisplayString isIntro, isArray, isSum, isAvg, printHeaderForArray, sumHeader, sumHeader, stringForOutput, farewell
+	mDisplayString [EBP+32], [EBP+36], [EBP+40], [EBP+44], [EBP+48], [EBP+20], [EBP+20], [EBP+8], [EBP+64]
+	
+	; reset the digit tracker once the string has been printed
+	MOV		digitTracker,	0
 
-;	mDisplayString isIntro, isArray, isSum, isAvg, printHeaderForArray, sumHeader, sumHeader, stringForOutput
-	mDisplayString [EBP+32], [EBP+36], [EBP+40], [EBP+44], [EBP+48], [EBP+20], [EBP+20], [EBP+8]
+	JMP		_average
 
-_prepAverage:
+_printAverage:
+;	mDisplayString isIntro, isArray, isSum, isAvg, printHeaderForArray, averageHeader, averageHeader, stringForOutput, farewell
+	mDisplayString [EBP+32], [EBP+36], [EBP+40], [EBP+44], [EBP+48], [EBP+24], [EBP+24], [EBP+8], [EBP+64]
 
-	RET 52
+
+	RET 60
 WriteVal ENDP
 	
 ; ---------------------------------------------------------------------------------
@@ -1140,94 +1196,94 @@ _whereSumHappens:
 	RET	16
 findSum	ENDP
 
+; ---------------------------------------------------------------------------------
+; Name: findAverage
+;
+; finds the average of all the numbers input by user this takes the sum and 
+;	divides that by the length of the array, which is 10
+;	
+; Preconditions: numArray is filled with numbers that fit within a 32-bit register.
+;		The variable sum contains the summation of the items in the array
+;
+; Postconditions: None
+;
+; Receives:
+; [EBP+16]	= LENGTHOF numArray
+; [EBP+12]	= address of average
+; [EBP+8]	= address of sum
+;
+; returns: the variable average has the floored average of the numbers
+; ---------------------------------------------------------------------------------
+findAverage	PROC
+	LOCAL	lengthOfArray:DWORD
+
+	PUSHAD
+
+	; set up divisor
+	MOV		EDX,			[EBP+16]
+	MOV		lengthOfArray,	EDX
+	MOV		EDX,			0
+
+	; check to see if num is negative
+	MOV		EBX,	[EBP+8]
+	MOV		EAX,	[EBX]
+	CMP		EAX,	1
+	JS		_negativeDivide
+	JMP		_positiveDivide
+
+_negativeDivide:
+
+	CDQ
+	IDIV	lengthOfArray
+	JMP		_assignToAvg
+
+_positiveDivide:
+	
+	DIV		lengthOfArray
+	JMP		_assignToAvg
+
+_assignToAvg:
+
+	MOV		EBX,	[EBP+12]
+	MOV		[EBX],	EAX
+
+_exitProcedure:
+	POPAD
+	RET	12
+
+findAverage	ENDP
+
+; ---------------------------------------------------------------------------------
+; Name: cleanString
+;
+; cleans up the string that will be output to the screen
+;	
+; Preconditions: variable stringForOutput and constant stringBuffer are declared
+;
+; Postconditions: stringForOutput is cleaned up
+;
+; Receives:
+; [EBP+12]	= stringBuffer
+; [EBP+8]	= address of stringForOutput
+;
+; returns: None
+; ---------------------------------------------------------------------------------
+cleanString PROC
+
+	PUSH	EBP
+	MOV		EBP,	ESP
+	PUSHAD
+
+	; clean up stringForOutput
+	MOV		EDI,	[EBP+8]						; stringForOutput
+	MOV		AL,		0
+	MOV		ECX,	[EBP+12]					; stringBuffer
+	REP		STOSB
+
+	POPAD
+	POP		EBP
+
+	RET	8
+cleanString ENDP
+
 END main
-
-
-;------------------------------------------------
-; Program Description
-;------------------------------------------------
-
-
-; Write and test a MASM program to perform the following tasks (check the Requirements section for specifics on program modularization):
-; I. Implement and test two macros for string processing. These macros may use Irvine’s ReadString to get input from the user, and WriteString procedures to display output.
-; a. mGetSring:  Display a prompt (input parameter, by reference), then get the user’s keyboard input into a memory location (output parameter, by reference). You may also need to provide a count (input parameter, by value) for the length of input string you can accommodate and a provide a number of bytes read (output parameter, by reference) by the macro.
-; b. mDisplayString:  Print the string which is stored in a specified memory location (input parameter, by reference).
-; II. Implement and test two procedures for signed integers which use string primitive instructions
-
-
-; ReadVal: 
-; 1. Invoke the mGetSring macro (see parameter requirements above) to get user input in the form of a string of digits.
-; 2. Convert (using string primitives) the string of ascii digits to its numeric value representation (SDWORD), validating the user’s input is a valid number (no letters, symbols, etc).
-; 3. Store this value in a memory variable (output parameter, by reference). 
-
-
-; WriteVal: 
-; 1. Convert a numeric SDWORD value (input parameter, by value) to a string of ascii digits
-; 2. Invoke the mDisplayString macro to print the ascii representation of the SDWORD value to the output.
-
-
-; Write a test program (in main) which uses the ReadVal and WriteVal procedures above to:
-; 1. Get 10 valid integers from the user.
-; 2. Stores these numeric values in an array.
-; 3. Display the integers, their sum, and their average.
-
-
-;----------------------------------------------------
-; Program Requirements
-;----------------------------------------------------
-; 1. User’s numeric input must be validated the hard way:
-;	a. Read the user's input as a string and convert the string to numeric form.
-;	b. If the user enters non-digits other than something which will indicate sign (e.g. ‘+’ or ‘-‘), or the number is too large for 32-bit registers, an error message should be displayed and the number should be discarded.
-;	c. If the user enters nothing (empty input), display an error and re-prompt.
-; 2. ReadInt, ReadDec, WriteInt, and WriteDec are not allowed in this program.
-; 3. Conversion routines must appropriately use the LODSB and/or STOSB operators for dealing with strings.
-; 4. All procedure parameters must be passed on the runtime stack. Strings must be passed by reference
-; 5. Prompts, identifying strings, and other memory locations must be passed by address to the macros.
-; 6. Used registers must be saved and restored by the called procedures and macros.
-; 7. The stack frame must be cleaned up by the called procedure.
-; 8. Procedures (except main) must not reference data segment variables or constants by name. 
-; 9. The program must use Register Indirect addressing for integer (SDWORD) array elements, and Base+Offset addressing for accessing parameters on the runtime stack.
-; 10. Procedures may use local variables when appropriate.
-; 11. The program must be fully documented and laid out according to the CS271 Style Guide. This includes a complete header block for identification, description, etc., a comment outline to explain each section of code, and proper procedure headers/documentation.
-
-
-;------------------------------------------------------
-; Notes
-;------------------------------------------------------
-; 1. For this assignment you are allowed to assume that the total sum of the numbers will fit inside a 32 bit register.
-; 2. We will be testing this program with positive and negative values.
-; 3. When displaying the average, you may round down (floor) to the nearest integer. For example if the sum of the 10 numbers is 356.8 you may display the average as 356.
-; 4. Check the Course SyllabusPreview the document for late submission guidelines.
-; 5. Find the assembly language instruction syntax and help in the CS271 Instructions Guide.
-; 6. To create, assemble, run,  and modify your program, follow the instructions on the course Syllabus Page’s "Tools" tab.
-
-; ---------------------------------------------------
-; Example execution
-; ---------------------------------------------------
-; PROGRAMMING ASSIGNMENT 6: Designing low-level I/O procedures 
-; Written by: Sheperd Cooper 
-; 
-; Please provide 10 signed decimal integers.  
-; Each number needs to be small enough to fit inside a 32 bit register. After you have finished inputting the raw numbers I will display a list of the integers, their sum, and their average value. 
-;  
-; Please enter an signed number: 156 
-; Please enter an signed number: 51d6fd 
-; ERROR: You did not enter a signed number or your number was too big. 
-; Please try again: 34 
-; Please enter a signed number: -186 
-; Please enter a signed number: 115616148561615630 
-; ERROR: You did not enter an signed number or your number was too big. 
-; Please try again: -145
-; Please enter a signed number: 5 
-; Please enter a signed number: +23 
-; Please enter a signed number: 51 
-; Please enter a signed number: 0 
-; Please enter a signed number: 56 
-; Please enter a signed number: 11 
-; 
-; You entered the following numbers: 
-; 156, 34, -186, -145, 5, 23, 51, 0, 56, 11 
-; The sum of these numbers is: 5 
-; The rounded average is: 1 
- 
-; Thanks for playing! 
