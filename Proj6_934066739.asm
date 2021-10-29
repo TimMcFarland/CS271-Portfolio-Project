@@ -1,4 +1,4 @@
-TITLE Proj6_934066739     (Proj6_934066739.asm)
+; Final project for CS271, Introduction to CPU Architecture and Assembly Language.
 
 ; Author: Tim McFarland
 ; Last Modified: 3/16/2021
