@@ -2,9 +2,6 @@ TITLE Proj6_934066739     (Proj6_934066739.asm)
 
 ; Author: Tim McFarland
 ; Last Modified: 3/16/2021
-; OSU email address: mcfarlti@oregonstate.edu
-; Course number/section:   CS271 Section 400
-; Project Number: 6              Due Date: 3/16/2021 (using 2 grace days; see Canvas comment from 3/6)
 
 ; Description: Receives 10 different integers from a user and validates whether or not those integers
 ;	fit within a 32 bit register and if they are integers. If they are integers that fit,
